@@ -45,15 +45,9 @@
     "timeoutSec": 120
   },
   "chat": {
-    "provider": "dsh",
     "dshBaseUrl": "http://127.0.0.1:3080/m/api",
     "dshSessionId": "",
     "dshToken": "",
-    "apiBaseUrl": "https://api.deepseek.com/v1",
-    "apiKey": "",
-    "apiModel": "deepseek-chat",
-    "systemPrompt": "",
-    "maxTurns": 8,
     "replyTimeoutSec": 100
   },
   "schedule": {

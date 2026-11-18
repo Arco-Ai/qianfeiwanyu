@@ -1378,8 +1378,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
           </div>
           <div class="mgroup">
             <h3>把话带到哪儿</h3>
-            <p class="desc">「DSH 会话」把输入直接投递到 DeepSeek Harness 的某个会话，回复从会话历史里读回来——和你在 DSH 里说话是同一条链路；「第三方接口」走 OpenAI 兼容的 <code>/chat/completions</code>，观察台自己保存对话。具体发给哪个会话，在对话框上方的抽屉里随时切换。</p>
-            <div class="field"><label>来源</label><select id="chatProvider"><option value="dsh">DSH 会话（推荐）</option><option value="api">第三方 API</option></select></div>
+            <p class="desc">对话固定走 <b>DSH 会话</b>：把输入直接投递到 DeepSeek Harness 的某个会话，回复从会话历史里读回来——和你在 DSH 里说话是同一条链路。具体发给哪个会话，在对话框上方的抽屉里随时切换。</p>
             <div class="field"><label>DSH 地址</label><input type="text" id="chatDshBase" placeholder="http://127.0.0.1:3080/m/api"></div>
             <div class="field"><label>DSH 口令</label><input type="password" id="chatDshToken" autocomplete="off" placeholder="留空 = 读本机 ~/.dsh/mobile-remote/auth-token"><button class="mbtn danger" id="btnClearDshToken">清除</button></div>
             <div class="mrow"><button class="mbtn" id="btnTestDsh">测试连接</button><span class="unit" id="chatDshTest">—</span></div>
@@ -1387,16 +1386,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
             <p class="desc" style="margin:8px 0 0" id="chatDshHint">—</p>
           </div>
           <div class="mgroup">
-            <h3>第三方接口（OpenAI 兼容）</h3>
-            <div class="field"><label>接口地址</label><input type="text" id="chatBaseUrl" placeholder="https://api.deepseek.com/v1"></div>
-            <div class="field"><label>模型名</label><input type="text" id="chatModel" placeholder="deepseek-chat"></div>
-            <div class="field"><label>API Key</label><input type="password" id="chatKey" autocomplete="off" placeholder="留空 = 不修改"><button class="mbtn danger" id="btnClearChatKey">清除</button></div>
-            <div class="field"><label>人设提示</label><textarea id="chatSystem" rows="3" placeholder="留空 = 用观察台默认人设（角色名 + 简短口语）"></textarea></div>
-            <p class="desc" style="margin:8px 0 0">也可用环境变量 <code>FISH_CHAT_API_KEY</code>。密钥只在本机，浏览器不会直接访问第三方。</p>
-          </div>
-          <div class="mgroup">
             <h3>提问时的分支选项</h3>
-            <p class="desc">她问你问题后，画面中部会自动浮出 2–3 个选项，点哪个就把哪句当作你的回复发给她。第三方 API 可在人设里加 <code>[[CHOICES]]选项A|选项B|选项C[[/CHOICES]]</code> 自定义选项；DSH 会话则由观察台按提问内容本地生成。</p>
+            <p class="desc">她问你问题后，画面中部会自动浮出 2–3 个选项，点哪个就把哪句当作你的回复发给她。选项由观察台按提问内容本地生成。</p>
             <div class="field"><label>显示提问选项</label><input type="checkbox" id="replyOptsOn" style="accent-color:var(--accent)"><span class="unit">关掉后她提问时不再弹出选项</span></div>
           </div>
         </section>
@@ -1534,7 +1525,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   var S=null, ASSETS=null, SCENES=null, SETTINGS=null, chapter='greet', auto=true, panelOpen=false, settingsOpen=false, panelView='menu', lastSceneFile='';
   var SCHEDULE=null, schedTimer=null;  /* 每日日程（千肥万鱼自有 + DSH 兼容）+ 定时刷新句柄 */
   var typing=null, fullText='', typed=false, lastMood=null, lastFresh=null;
-  var lastSpoken='', speaking=false, serverAudio=null, voices=[], voiceSeq=0, clearImgKey=false, clearTtsKey=false, clearChatKey=false;
+  var lastSpoken='', speaking=false, serverAudio=null, voices=[], voiceSeq=0, clearImgKey=false, clearTtsKey=false;
   var DSH_PERSONA=null, DIARY_LIST=[], DIARY_ENTRY=null, diaryDoneKey='';
   var DBK_SPREADS=[], DBK_PAGE=0;  /* 全屏日记本：分页后的跨页数组与当前跨页索引 */
   var MEM_KEY='fishwatch.memory.archive', MEM_DEF={sessions:[],archives:[],lastOrganized:0};
@@ -3739,12 +3730,6 @@ body.game-mode #gameFlag{display:inline-flex!important}
     $('svTimeout').value=gs.timeoutSec==null?120:gs.timeoutSec;
     applyVoiceEngineUI();
     var ch=SETTINGS.chat||{};
-    $('chatProvider').value=ch.provider||'dsh';
-    $('chatBaseUrl').value=ch.apiBaseUrl||'';
-    $('chatModel').value=ch.apiModel||'';
-    $('chatKey').value='';
-    $('chatKey').placeholder=ch.apiKeySet?'已保存密钥 · 留空不修改':'填入 API Key';
-    $('chatSystem').value=ch.systemPrompt||'';
     if($('chatDshBase'))$('chatDshBase').value=ch.dshBaseUrl||'';
     if($('chatDshToken')){
       $('chatDshToken').value='';
@@ -3752,9 +3737,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     }
     if($('chatDshTest'))$('chatDshTest').textContent='—';
     if($('dshBridgeOn'))$('dshBridgeOn').checked=PLAY.dshBridge!==false;
-    $('chatDshHint').textContent=ch.provider==='dsh'
-      ? '话会直接进 DSH 会话，回复从该会话的历史里读回；发送前请确认上方抽屉里选中的会话是对的。'
-      : '当前走第三方接口，不会写进 DSH 会话。';
+    $('chatDshHint').textContent='话会直接进 DSH 会话，回复从该会话的历史里读回；发送前请确认上方抽屉里选中的会话是对的。';
     if($('replyOptsOn'))$('replyOptsOn').checked=PLAY.replyOpts!==false;
     if($('atriExprOn'))$('atriExprOn').checked=PLAY.atriExprOn!==false;
     if($('atriReactOn'))$('atriReactOn').checked=PLAY.atriReactOn!==false;
@@ -3814,9 +3797,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
       serverTts:{baseUrl:$('ttsBaseUrl').value,model:$('ttsModel').value,voice:$('ttsServerVoice').value,
                  format:$('ttsFormat').value,apiKey:$('ttsKey').value},
       sovits:collectSovits(),
-      chat:{provider:$('chatProvider').value,apiBaseUrl:$('chatBaseUrl').value,apiModel:$('chatModel').value,
-            apiKey:$('chatKey').value,systemPrompt:$('chatSystem').value,
-            dshBaseUrl:($('chatDshBase')&&$('chatDshBase').value.trim())||'',
+      chat:{dshBaseUrl:($('chatDshBase')&&$('chatDshBase').value.trim())||'',
             dshToken:($('chatDshToken')&&$('chatDshToken').value.trim())||'',
             clearDshToken:CLEAR_DSH_TOKEN,
             dshSessionId:(SETTINGS&&SETTINGS.chat&&SETTINGS.chat.dshSessionId)||''},
@@ -3826,15 +3807,15 @@ body.game-mode #gameFlag{display:inline-flex!important}
                 autoGenerate:!$('schAutoGenerate')||$('schAutoGenerate').checked},
       diary:{enabled:!$('diaryEnabled')||$('diaryEnabled').checked,
              time:(($('diaryTime')&&$('diaryTime').value.trim())||'21:00')},
-      _clearImageKey:clearImgKey,_clearTtsKey:clearTtsKey,_clearChatKey:clearChatKey
+      _clearImageKey:clearImgKey,_clearTtsKey:clearTtsKey
     };
   }
   function postSettings(){
     return fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectSettings())})
       .then(function(r){return r.json()}).then(function(d){
         if(!d.ok)throw new Error(d.error||'保存失败');
-        SETTINGS=d.settings;clearImgKey=false;clearTtsKey=false;clearChatKey=false;
-        $('imgKey').value='';$('ttsKey').value='';$('chatKey').value='';
+        SETTINGS=d.settings;clearImgKey=false;clearTtsKey=false;
+        $('imgKey').value='';$('ttsKey').value='';
         syncVoiceToggle();
         return d.settings;
       });
@@ -4602,7 +4583,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     layoutCallCard();
   }
 
-  /* ---------- 对话：输入 → DSH / 第三方 API → 回到下方对话框 ---------- */
+  /* ---------- 对话：输入 → DSH 会话 → 回到下方对话框 ---------- */
   var CHAT={open:false,state:null,sending:false,pollTimer:0,target:''};
 
   /* 对话记录里「你那一行」显示的名字：优先独立的 chatName，没填才回退到「她怎么称呼你」 */
@@ -4781,7 +4762,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     var el=$('replyOpts');if(el){el.classList.remove('open');el.innerHTML=''}
     if(replyOptsTimer){clearTimeout(replyOptsTimer);replyOptsTimer=0}
   }
-  /* 第三方 API 可在台词里附 [[CHOICES]]A|B|C[[/CHOICES]]，交给前端解析；显示层已剥离 */
+  /* 台词里可附 [[CHOICES]]A|B|C[[/CHOICES]]，交给前端解析；显示层已剥离 */
   function extractAIOptions(raw){
     var m=String(raw||'').match(/\[\[CHOICES\]\]([\s\S]*?)\[\[\/CHOICES\]\]/i);
     if(!m)return null;
@@ -5412,7 +5393,6 @@ body.game-mode #gameFlag{display:inline-flex!important}
   })();
   $('btnClearImgKey').onclick=function(){clearImgKey=true;$('imgKey').value='';$('imgKey').placeholder='将被清除 · 保存后生效';toast('点「保存设置」后清除图片密钥')};
   $('btnClearTtsKey').onclick=function(){clearTtsKey=true;$('ttsKey').value='';$('ttsKey').placeholder='将被清除 · 保存后生效';toast('点「保存设置」后清除语音密钥')};
-  $('btnClearChatKey').onclick=function(){clearChatKey=true;$('chatKey').value='';$('chatKey').placeholder='将被清除 · 保存后生效';toast('点「保存设置」后清除对话密钥')};
   $('btnGenerate').onclick=generateArt;
   $('filePersona').onchange=function(){var f=this.files&&this.files[0];if(f)uploadPersonaFile(f);this.value=''};
   $('btnDisablePersona').onclick=function(){setPersona({activeId:''})};
@@ -5607,11 +5587,19 @@ body.game-mode #gameFlag{display:inline-flex!important}
     return loadDiaryList(false);
   }).then(function(){
     diaryTick();
-    setInterval(diaryTick,60000);
+    gameRegTimer(diaryTick,60000);   /* 纳入统一管理，游戏模式下会停掉 */
   });
   bootChat();
   /* 后台循环统一登记：进入游戏模式时全部停掉，退出时按原节奏重建 */
-  function gameRegTimer(fn,ms){GAME_TIMER_FNS.push({fn:fn,ms:ms});return {fn:fn,ms:ms,id:setInterval(fn,ms)}}
+  function gameRegTimer(fn,ms){
+    var def={fn:fn,ms:ms};
+    GAME_TIMER_FNS.push(def);
+    var handle={fn:fn,ms:ms,id:setInterval(fn,ms)};
+    GAME_TIMERS.push(handle);   /* 首次启动也要登记句柄，游戏模式才能停掉它 */
+    /* 启动异步链里若已进入游戏模式，刚登记的定时器要立刻停掉，避免漏网 */
+    if(gameModeOn()){clearInterval(handle.id)}
+    return handle;
+  }
   function setClock(){
     var el=$('clock');
     if(el)el.textContent=new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});

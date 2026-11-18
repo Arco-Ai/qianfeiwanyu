@@ -28,6 +28,34 @@ const net = require('net');
 const ROOT = path.resolve(process.env.DSH_ROOT || path.join(os.homedir(), '.dsh')).replace(/\\/g, '/');
 const PORT = Number(process.env.FISH_WATCH_PORT || 18765);
 const HOST = '127.0.0.1';
+
+/* 本地接口防护：只接受本机页面 / 本机脚本的请求，挡住跨站伪造（CSRF）。
+ * - 浏览器跨站 POST 一定带外来 Origin / Sec-Fetch-Site: cross-site，据此拒绝；
+ * - 桌面版同源请求 Origin 是 http://127.0.0.1:<任意端口>，属本机，放行；
+ * - DSH 插件、curl 等本机脚本通常不带 Origin / Sec-Fetch-Site，放行。 */
+function localRequestGuard(req, res) {
+  const h = req.headers || {};
+  const origin = h.origin;
+  if (origin) {
+    let ok = false;
+    try {
+      const u = new URL(origin);
+      const host = (u.hostname || '').toLowerCase();
+      ok = (host === '127.0.0.1' || host === 'localhost' || host === '[::1]' || host === '::1');
+    } catch (e) { ok = false; }
+    if (!ok) {
+      sendJson(res, 403, { ok: false, error: '拒绝外来来源的请求' });
+      return false;
+    }
+  }
+  const site = h['sec-fetch-site'];
+  if (site === 'cross-site') {
+    sendJson(res, 403, { ok: false, error: '拒绝跨站请求' });
+    return false;
+  }
+  return true;
+}
+
 const CACHE_MS = 2500;
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_BODY_BYTES = 18 * 1024 * 1024;
@@ -94,15 +122,9 @@ const DEFAULT_SETTINGS = {
     timeoutSec: 120,
   },
   chat: {
-    provider: 'dsh',
     dshBaseUrl: 'http://127.0.0.1:3080/m/api',
     dshSessionId: '',
     dshToken: '',
-    apiBaseUrl: 'https://api.deepseek.com/v1',
-    apiKey: '',
-    apiModel: 'deepseek-chat',
-    systemPrompt: '',
-    maxTurns: 8,
     replyTimeoutSec: 100,
   },
   schedule: {
@@ -211,15 +233,9 @@ function mergeSettings(body, cur) {
     },
     sovits: normalizeSovits(b.sovits, cv),
     chat: {
-      provider: oneOf(ch.provider, ['dsh', 'api'], cc.provider),
       dshBaseUrl: str(ch.dshBaseUrl, 300, cc.dshBaseUrl),
       dshSessionId: str(ch.dshSessionId, 160, cc.dshSessionId || ''),
       dshToken: ch.clearDshToken ? '' : (typeof ch.dshToken === 'string' && ch.dshToken ? ch.dshToken.slice(0, 200) : (cc.dshToken || '')),
-      apiBaseUrl: str(ch.apiBaseUrl, 300, cc.apiBaseUrl),
-      apiKey: typeof ch.apiKey === 'string' && ch.apiKey ? ch.apiKey.slice(0, 600) : (cc.apiKey || ''),
-      apiModel: str(ch.apiModel, 120, cc.apiModel),
-      systemPrompt: str(ch.systemPrompt, 2000, cc.systemPrompt || ''),
-      maxTurns: num(ch.maxTurns, 2, 30, cc.maxTurns),
       replyTimeoutSec: num(ch.replyTimeoutSec, 20, 300, cc.replyTimeoutSec),
     },
     schedule: {
@@ -238,7 +254,6 @@ function mergeSettings(body, cur) {
   };
   if (b._clearImageKey === true) s.image.apiKey = '';
   if (b._clearTtsKey === true) s.serverTts.apiKey = '';
-  if (b._clearChatKey === true) s.chat.apiKey = '';
   return s;
 }
 
@@ -256,11 +271,9 @@ function publicSettings(s) {
   const out = JSON.parse(JSON.stringify(s));
   out.image.apiKeySet = !!out.image.apiKey;
   out.serverTts.apiKeySet = !!out.serverTts.apiKey;
-  out.chat.apiKeySet = !!out.chat.apiKey;
   out.chat.dshTokenSet = !!out.chat.dshToken;
   out.image.apiKey = '';
   out.serverTts.apiKey = '';
-  out.chat.apiKey = '';
   out.chat.dshToken = '';
   out.capabilities = {
     browserTts: true,
@@ -954,6 +967,12 @@ const PACK_VERSION = 1;
 const PACK_CONFIG_FILES = ['assets.json', 'scenes.json', 'assets/audio/index.json'];
 const PACK_SAFE = /^(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/;   // 相对路径、无 .. 无盘符
 const PACK_ALLOWED_EXT = /\.(?:png|jpe?g|webp|gif|ogg|mp3|m4a|wav|webm|json)$/i;
+/* 素材包允许写入的路径：仅限明确列出的配置文件，以及 assets/ 下的素材。
+ * settings.json / persona.json / *.yml / server.js 等一律拒绝，避免「导入素材」越权覆盖配置。 */
+function packWriteAllowed(rel) {
+  if (PACK_CONFIG_FILES.indexOf(rel) >= 0) return true;
+  return rel.indexOf('assets/') === 0;
+}
 
 /* CRC32（标准 IEEE 多项式，查表法） */
 const CRC_TABLE = (() => {
@@ -1114,6 +1133,7 @@ function importAssetPack(buf) {
       throw httpError(400, '素材包含非法路径：' + e.name.slice(0, 80));
     }
     if (!PACK_ALLOWED_EXT.test(e.name)) throw httpError(400, '素材包含不允许的文件类型：' + e.name.slice(0, 80));
+    if (!packWriteAllowed(e.name)) throw httpError(400, '素材包含不允许写入的文件：' + e.name.slice(0, 80));
     const meta = table[e.name];
     if (!meta) throw httpError(400, '清单里没有登记的文件：' + e.name.slice(0, 80));
     if (meta.size !== e.data.length || meta.crc !== crc32(e.data)) {
@@ -1638,7 +1658,7 @@ function uploadAsset(body) {
   return Object.assign(base, { config: out.config, files: out.files, scenes: out.scenes });
 }
 
-/* ---------- 第三方 API 代理（仅主动触发） ---------- */
+/* ---------- 外部 API 代理（图片生成 / 语音合成等，仅主动触发） ---------- */
 
 function httpError(status, message) { const e = new Error(message); e.status = status; return e; }
 function redact(s) { return String(s || '').replace(/sk-[A-Za-z0-9_\-]{6,}/g, 'sk-***').slice(0, 400); }
@@ -1970,7 +1990,7 @@ async function createDshWorkspace() {
   });
 
   SETTINGS = saveSettings(mergeSettings({
-    chat: { provider: 'dsh', dshSessionId: sessionId },
+    chat: { dshSessionId: sessionId },
   }, SETTINGS));
   cache = { at: 0, value: null };
   CHAT_LOG = [];
@@ -2040,46 +2060,6 @@ async function chatViaDsh(text) {
   return { reply: '', sessionId: target.id, sessionTitle: target.title, pending: true };
 }
 
-function defaultChatSystem() {
-  const p = (function () { try { return loadPersona(); } catch (e) { return null; } })() || {};
-  const name = SETTINGS.characterName || p.name || '亚托莉';
-  const owner = SETTINGS.ownerName || p.ownerName || p.owner || '你';
-  return '你是「' + name + '」，正在通过千肥万鱼和' + owner + '面对面说话。'
-    + '语气自然口语、简短，一般 1–3 句，像真的在对话；不要输出 Markdown、列表或括号里的动作说明。'
-    + '描写动作、神态、心理时，一律用单星号包裹并单独成行，例如：*揉了揉眼睛*\n说出口的台词不要放进星号里。'
-    + '不知道的事就直说不知道。'
-    + '\n如果你在台词里向对方提问，可在最后另起一行附上 2–3 个「对方可能怎么回答」的简短选项，格式为 [[CHOICES]]选项A|选项B|选项C[[/CHOICES]]；不提问时不要输出这段标记。';
-}
-
-async function chatViaApi(text) {
-  const c = SETTINGS.chat;
-  const key = c.apiKey || process.env.FISH_CHAT_API_KEY || '';
-  if (!key) throw httpError(400, '尚未配置对话模型密钥：在「设置 → 对话」填 API Key，或设环境变量 FISH_CHAT_API_KEY；也可以把来源切回 DSH。');
-  const msgs = [{ role: 'system', content: c.systemPrompt || defaultChatSystem() }];
-  const turns = Math.max(1, Math.min(30, c.maxTurns || 8));
-  CHAT_LOG.slice(-turns * 2).forEach(m => {
-    if ((m.role === 'user' || m.role === 'assistant') && m.text) msgs.push({ role: m.role, content: m.text });
-  });
-  if (!msgs.some(m => m.role === 'user' && m.content === text)) msgs.push({ role: 'user', content: text });
-  let r;
-  try {
-    r = await proxyFetch(joinUrl(c.apiBaseUrl, 'chat/completions'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: c.apiModel, messages: msgs, temperature: 0.8, max_tokens: 800 }),
-    }, 120000);
-  } catch (e) { throw httpError(502, '对话模型请求失败：' + redact(e.message)); }
-  if (!r.ok) {
-    const j = r.json || {};
-    throw httpError(502, '对话模型返回 ' + r.status + '：' + redact(j.error ? (j.error.message || JSON.stringify(j.error)) : r.text));
-  }
-  const d = r.json || {};
-  const msg = (d.choices && d.choices[0] && d.choices[0].message) || {};
-  const reply = String(msg.content || '').trim();
-  if (!reply) throw httpError(502, '对话模型返回了空回复');
-  return { reply, done: true, via: 'api', model: d.model || c.apiModel };
-}
-
 async function pollChatPending() {
   if (!chatPending) return { ok: true, pending: false, reply: '' };
   if (Date.now() - chatPending.at > 6 * 60 * 1000) { chatPending = null; return { ok: true, pending: false, reply: '' }; }
@@ -2100,11 +2080,9 @@ async function chatStatePayload() {
   const c = SETTINGS.chat;
   const out = {
     ok: true,
-    provider: c.provider,
     busy: chatBusy,
     pending: !!chatPending,
     dsh: { baseUrl: c.dshBaseUrl, sessionId: c.dshSessionId || '', sessions: [], error: '', tokenReady: !!dshEndpoint().token },
-    api: { baseUrl: c.apiBaseUrl, model: c.apiModel, keySet: !!c.apiKey, systemPrompt: c.systemPrompt || '' },
     log: chatLogTail(40),
   };
   try {
@@ -2367,7 +2345,7 @@ async function handlePost(p, req, res) {
     chatBusy = true;
     try {
       pushChat('user', text);
-      const out = SETTINGS.chat.provider === 'api' ? await chatViaApi(text) : await chatViaDsh(text);
+      const out = await chatViaDsh(text);
       if (out.reply) pushChat('assistant', out.reply);
       return sendJson(res, 200, Object.assign({ ok: true }, out, { log: chatLogTail(20) }));
     } finally {
@@ -2415,12 +2393,26 @@ const server = http.createServer((req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
 
+  /* 跨站来源一律拒绝（见 localRequestGuard） */
+  if (!localRequestGuard(req, res)) return;
+
   if (method === 'POST' && p === '/api/pack/import') {
+    const ct = String((req.headers || {})['content-type'] || '').toLowerCase();
+    if (ct.indexOf('application/zip') < 0 && ct.indexOf('application/octet-stream') < 0) {
+      sendJson(res, 415, { ok: false, error: '素材包请求类型不正确' });
+      return;
+    }
     readBinaryBody(req).then((buf) => sendJson(res, 200, importAssetPack(buf)))
       .catch((e) => sendError(res, e));
     return;
   }
   if (method === 'POST' && p.indexOf('/api/') === 0) {
+    /* 写接口只接受 JSON，挡住表单 / text/plain 之类浏览器可跨站发出的类型 */
+    const ct = String((req.headers || {})['content-type'] || '').toLowerCase();
+    if (ct.indexOf('application/json') < 0) {
+      sendJson(res, 415, { ok: false, error: '请求类型不正确（需要 application/json）' });
+      return;
+    }
     handlePost(p, req, res).catch((e) => sendError(res, e));
     return;
   }
@@ -2562,7 +2554,7 @@ server.listen(PORT, HOST, () => {
   console.log('  DSH 数据目录：' + ROOT + '  (只读；仅「保存到 DSH」时写回 surfcore 当前 persona.md)');
   console.log('  本地写入范围：' + APP_DIR + '\\settings.json、persona.json、assets.json、chat-log.json、assets\\uploads\\、data\\schedules\\、data\\diaries\\ 与 data\\persona-backups\\');
   console.log('  访问地址：http://' + HOST + ':' + PORT + '/');
-  console.log('  对话：DSH 会话走 .dsh/mobile-remote 口令（只读），第三方接口仅在主动发送时调用');
+  console.log('  对话：固定走 DSH 会话，经 .dsh/mobile-remote 口令（只读）');
   console.log('  语音：浏览器语音 / 服务端 TTS / 本地 GPT-SoVITS（默认 http://127.0.0.1:9880）');
   console.log('  按 Ctrl+C 停止。');
   if (process.env.FISH_WATCH_NO_OPEN !== '1' && process.platform === 'win32') {
