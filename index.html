@@ -1434,7 +1434,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
           </div>
           <div class="mgroup">
             <h3>游戏模式</h3>
-            <p class="desc">打游戏时用：一键切到低占用状态——只留静态立绘、场景、时钟与当前台词，停掉全部后台轮询、打字机、转场动画、粒子、语音与 BGM。点顶栏「游戏模式 / 退出游戏」即可切换，数据在浏览器本地。</p>
+            <p class="desc">打游戏时用：一键切到低占用状态——只留静态立绘、场景、时钟与当前台词，停掉全部后台轮询、打字机、转场动画、粒子、语音与 BGM。点顶栏「游戏模式 / 对话模式」即可切换，数据在浏览器本地。</p>
             <div class="field"><label>游戏模式</label><input type="checkbox" id="gameModeOn" style="accent-color:var(--accent)"><span class="unit">等价于点顶栏按钮；快捷键 Ctrl/⌘ + G</span></div>
           </div>
           <div class="mgroup" id="winSection">
@@ -2267,8 +2267,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
     var on=gameModeOn();
     document.body.classList.toggle('game-mode',on);
     var b=$('btnGame'),mb=$('mbGame');
-    if(b){b.textContent=on?'退出游戏':'游戏模式';b.classList.toggle('on',on);
-      b.title=on?'退出游戏模式，恢复自动刷新与全部演出':'进入游戏模式：暂停后台刷新、动画、语音与音频，降低 GPU / CPU 占用'}
+    if(b){b.textContent=on?'对话模式':'游戏模式';b.classList.toggle('on',on);
+      b.title=on?'切换到对话模式，恢复自动刷新与全部演出':'进入游戏模式：暂停后台刷新、动画、语音与音频，降低 GPU / CPU 占用'}
     if(mb){mb.textContent=on?'Normal':'Game';mb.classList.toggle('on',on)}
     var sw=$('gameModeOn');if(sw)sw.checked=on;
   }
@@ -2279,7 +2279,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     applyGameModeUI();
     if(on){gameClearEffects();gameTameAudio();gameStopTimers();}
     else{gameRestoreTimers();gameTameAudio();try{applyAudioState()}catch(e){}try{applyPortrait()}catch(e){}}
-    if(announce!==false)toast(on?'游戏模式已开启 · 已暂停后台刷新与动画，点「退出游戏」恢复':'已恢复正常模式');
+    if(announce!==false)toast(on?'游戏模式已开启 · 已暂停后台刷新与动画，点「对话模式」恢复':'已恢复正常模式');
   }
   document.addEventListener('keydown',function(e){
     if(!e.ctrlKey&&!e.metaKey)return;
