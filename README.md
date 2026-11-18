@@ -31,7 +31,7 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.4-win-x64.zip`（约 290 MB）。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.5-win-x64.zip`（约 290 MB）。
 2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
@@ -114,6 +114,13 @@ dsh plugin --profile desktop add ./dsh-plugin
 - 想换令牌：关掉程序，删掉那个文件，再启动。
 - **能挡什么**：同机其他账户、端口转发/反代暴露、盲目扫描的本机脚本。**挡不住什么**：已经以你的账户在跑的恶意程序——它能直接读令牌文件、读进程内存，这类风险只能靠系统层面防护。
 - 素材文件（`/assets/*`）为了 `<img>` 能直接加载没有加令牌，属于已知取舍。
+
+### 素材包导入的安全边界
+
+- **先校验后写盘**：除了 manifest 格式、逐文件 CRC 与路径白名单，`assets.json` / `scenes.json` / `assets/audio/index.json` 还要通过结构校验；任何一项不合格整个包被拒绝，磁盘上一个字节都不改。
+- **覆盖前先备份**：本次导入会覆盖的每一个文件（配置、图片、音频）都按原相对路径存到 `data/assetpack-backups/<时间戳-随机>/`，要恢复就把里面的文件拷回原位。
+- **写入可回滚**：内容先写成同目录临时文件，再逐个改名落位；中途失败会把已落位的文件还原、清掉临时文件，不会留下新旧混杂的半成品。
+- **读取有容错**：`assets.json` 即使被手工改坏（例如写成 `null`），素材接口仍按空配置返回，服务不会因此退出。
 
 ## 四、数据放在哪里
 
