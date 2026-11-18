@@ -34,7 +34,13 @@ const INCLUDE_FILES = [
   'fish-watch.config.yml',
   'start.cmd',
 ];
-const INCLUDE_DIRS = ['assets', 'data'];
+/* 素材目录。注意 data/ 不在这里：整个目录都是使用者的运行数据（日记、日程、
+ * 人格备份、素材包备份），只按扩展名挑文件会漏掉人格备份的 .md / .txt，
+ * 所以整目录不复制，改由 main() 末尾创建空目录骨架。 */
+const INCLUDE_DIRS = ['assets'];
+
+/* 这些目录属于运行时数据，打包时整目录跳过，绝不依赖扩展名清单 */
+const RUNTIME_DIRS = ['data', 'assets/uploads'];
 
 /* 出厂设置模板：与 server.js 的 DEFAULT_SETTINGS 保持一致，所有个人信息留空。
  * 首次运行时程序会据此创建干净的 settings.json，不会带出打包者的数据。 */
@@ -53,8 +59,51 @@ const FACTORY_SETTINGS = {
   diary: { enabled: true, time: '21:00', maxDays: 180 },
 };
 
-/* data/ 下这些是运行数据（日记、日程、人格/素材包备份），绝不打进发行包 */
-const DATA_RUNTIME_FILES = /\.(json|log|zip|bak|tmp)$/i;
+/* data/ 整目录都不打包；这里不再按扩展名逐项排除（那会漏掉 .md / .txt 人格备份） */
+
+/* ---------- 运行数据目录的整目录排除 ---------- */
+function relOf(p) { return path.relative(APP_DIR, p).replace(/\\/g, '/'); }
+function isRuntimePath(rel) {
+  return RUNTIME_DIRS.some((d) => rel === d || rel.indexOf(d + '/') === 0);
+}
+
+/* 打包后自检：运行数据目录里除 .gitkeep 外不该有任何文件。
+ * 过滤规则一旦被绕过（新增备份格式、改名、新目录），这里会直接失败，
+ * 而不是把使用者的私人文本带进发行包。 */
+function findRuntimeLeaks() {
+  const leaked = [];
+  for (const d of RUNTIME_DIRS) {
+    const root = path.join(APP_PACK, d);
+    if (!fs.existsSync(root)) continue;
+    (function walk(p) {
+      for (const n of fs.readdirSync(p)) {
+        const f = path.join(p, n);
+        const st = fs.statSync(f);
+        if (st.isDirectory()) walk(f);
+        else if (n !== '.gitkeep') leaked.push(relOf(f));
+      }
+    })(root);
+  }
+  return leaked;
+}
+
+/* 自检身份信息：确认出厂设置与空聊天记录真的干净 */
+function findPrivacyLeaks() {
+  const bad = [];
+  const idFields = ['petName', 'characterName', 'ownerName', 'chatName', 'portrait'];
+  try {
+    const s = JSON.parse(fs.readFileSync(path.join(APP_PACK, 'settings.json'), 'utf8'));
+    for (const k of idFields) if (String(s[k] == null ? '' : s[k]).trim()) bad.push('settings.json:' + k);
+  } catch (e) { bad.push('settings.json 无法解析'); }
+  try {
+    const log = JSON.parse(fs.readFileSync(path.join(APP_PACK, 'chat-log.json'), 'utf8'));
+    if (!Array.isArray(log) || log.length) bad.push('chat-log.json 非空');
+  } catch (e) { bad.push('chat-log.json 无法解析'); }
+  for (const f of ['persona.json', 'window-state.json', 'settings.local.json']) {
+    if (fs.existsSync(path.join(APP_PACK, f))) bad.push(f);
+  }
+  return bad;
+}
 
 function copyFile(src, dst) {
   fs.mkdirSync(path.dirname(dst), { recursive: true });
@@ -100,17 +149,26 @@ function main() {
   fs.writeFileSync(path.join(APP_PACK, 'chat-log.json'), '[]\n', 'utf8');
   for (const dir of INCLUDE_DIRS) {
     copyDir(path.join(APP_DIR, dir), path.join(APP_PACK, dir), (name, srcPath) => {
+      /* 运行数据目录整目录排除（data/、assets/uploads/） */
+      const rel = relOf(srcPath);
+      if (isRuntimePath(rel)) return true;
       /* 通用：打包时不带运行期产物与临时文件 */
       if (name === 'atri-expressions-pack.zip' || name.endsWith('.log') || name.startsWith('_')) return true;
-      /* data/ 只保留目录骨架（.gitkeep），排除日记 / 日程 / 人格与素材包备份 */
-      const rel = path.relative(APP_DIR, srcPath).replace(/\\/g, '/');
-      if (rel.indexOf('data/') === 0 && name !== '.gitkeep' && DATA_RUNTIME_FILES.test(name)) return true;
       return false;
     });
   }
   /* 兜底：确保运行期会用到的空目录存在（server.js 也会自建，这里显式创建更稳妥） */
   for (const d of ['data/schedules', 'data/diaries', 'data/persona-backups', 'assets/uploads', 'assets/audio/bgm']) {
     fs.mkdirSync(path.join(APP_PACK, d), { recursive: true });
+  }
+
+  /* 隐私自检：任何运行数据 / 私人身份信息漏进发行包就中止打包 */
+  const leaks = findRuntimeLeaks().concat(findPrivacyLeaks());
+  if (leaks.length) {
+    console.error('打包中止：以下私人数据可能进入了发行包');
+    leaks.slice(0, 30).forEach((f) => console.error('  ' + f));
+    if (leaks.length > 30) console.error('  …共 ' + leaks.length + ' 项');
+    process.exit(1);
   }
 
   /* 重命名主程序 */

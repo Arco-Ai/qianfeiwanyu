@@ -31,7 +31,7 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.0-win-x64.zip`（约 277 MB）。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.1-win-x64.zip`（约 290 MB）。
 2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
@@ -117,11 +117,13 @@ dsh plugin --profile desktop add ./dsh-plugin
 - `settings.json` 中称呼、`portrait`、`dshSessionId`、API 密钥均为空。
 - `chat-log.json` 为 `[]`（不含你的私人聊天记录）。
 - 不含你的 DSH 会话 ID、SoVITS 参考音频路径等本机信息。
+- 打包时 `data/` 与 `assets/uploads/` **整目录不复制**（不再依赖扩展名清单，`.md` / `.txt` 人格备份也不会漏），随后只创建空目录骨架；`node desktop/build-portable.js` 结束前会自检，发现任何运行数据或私人身份信息就中止打包。
 
 每位使用者第一次打开后，可在「设置」里填自己的称呼、DSH 地址和密钥。这些个人数据都保存在本地，不会上传。
 
 ## 五、常见问题
 
+- **提示「选定的 DSH 会话已经不在列表里」？** 说明 DSH 里那个会话被删除、改名，或 DSH 重启后换了 id。打开对话面板顶部的会话下拉重新选一个即可；程序不会为了"能发出去"而自动改发到别的会话。
 - **没有声音？** 打开「设置 → 音量」集中调整各类声音的开关与大小（语音、音乐/BGM、环境音、音效），拖动即时生效；BGM / 环境音 / 音效的开关也都在这同一页。也可以直接把鼠标移到右下工具栏的**喇叭图标**上，弹出的快捷音量条可随手调这四路音量。
 - **想安静欣赏立绘和背景？** 点对话框右侧的小 **×** 进入「纯欣赏模式」——所有界面（顶栏、工具栏、对话框、任务栏、输入抽屉）全部隐藏，背景与立绘完整入镜。点右上角「退出欣赏」、按 `Esc`、或点画面空白处即可退出。
 - **能换盘符 / 换用户名吗？** 可以。所有路径都相对程序目录解析，不写死任何电脑路径。

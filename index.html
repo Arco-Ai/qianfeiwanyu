@@ -4716,6 +4716,12 @@ body.game-mode #gameFlag{display:inline-flex!important}
     CHAT.target=sel;
     var box=$('chatSession');if(!box)return;
     box.textContent='';
+    /* 选定的会话失效时给一个空占位，别让下拉框自动显示第一个（那会看成已选中） */
+    if(!sel&&list.length){
+      var ph=document.createElement('option');
+      ph.value='';ph.textContent=d.staleSession?'目标会话已失效，请重选':'请选择会话';ph.selected=true;
+      box.appendChild(ph);
+    }
     list.forEach(function(s){
       var o=document.createElement('option');
       o.value=s.id;
@@ -4731,7 +4737,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     }
     var cur=null;
     list.forEach(function(s){if(s.id===sel)cur=s});
-    $('chatTarget').textContent=cur?cur.title:(d.error?'DSH 未连接':'未选择');
+    $('chatTarget').textContent=cur?cur.title:(d.error?'DSH 未连接':(d.staleSession?'目标已失效，请重选':'未选择'));
     var dot=$('chatDot');
     if(dot)dot.classList.toggle('off',!sel);
     renderChatLog();
@@ -4870,6 +4876,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
       });
     }).then(function(j){
       CHAT.sending=false;if(btn)btn.disabled=false;
+      if(j.cancelled){stopThinking();return}   /* 发送期间被清空记录 / 切换目标 → 静默丢弃 */
       if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
       if(j.pending){say(who,'……（还在想，想到就说）');startChatPoll();return}
       stopThinking();
@@ -4882,6 +4889,10 @@ body.game-mode #gameFlag{display:inline-flex!important}
       if(j.done===false)toast('这段可能还没说完，DSH 那边还在跑');
     }).catch(function(e){chatFail(e.message)});
   }
+  function cancelChatPoll(){
+    if(CHAT.pollTimer){clearTimeout(CHAT.pollTimer);CHAT.pollTimer=0}
+    stopThinking();
+  }
   function startChatPoll(){
     if(CHAT.pollTimer)return;
     var who=shortName()||'亚托莉',started=Date.now(),tries=0;
@@ -4890,6 +4901,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
       fetch('/api/chat/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
         .then(function(r){return r.json()})
         .then(function(j){
+          if(j.cancelled){CHAT.pollTimer=0;stopThinking();return}  /* 记录已清空 / 目标已切换 → 结束轮询 */
           if(j.reply){
             CHAT.pollTimer=0;stopThinking();
             if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
@@ -4910,7 +4922,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     CHAT.pollTimer=setTimeout(tick,2400);
   }
   function switchChatSession(id){
-    hideReplyOptions();stopThinking();
+    hideReplyOptions();cancelChatPoll();
     fetch('/api/chat/config',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({chat:{dshSessionId:id}}),
@@ -5034,6 +5046,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
   $('chatSession').onchange=function(){switchChatSession(this.value||'')};
   $('chatNewWs').onclick=createDshWorkspace;
   $('chatReset').onclick=function(){
+    /* 先停掉本地轮询，再让服务端作废正在等待的那条，避免旧回复稍后弹回已清空的对话 */
+    cancelChatPoll();hideReplyOptions();
     fetch('/api/chat/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
       .then(function(r){return r.json()})
       .then(function(){if(CHAT.state)CHAT.state.log=[];renderChatLog();hideReplyOptions();toast('对话记录已清空（DSH 里不受影响）')})
