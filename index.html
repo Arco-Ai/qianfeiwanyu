@@ -1591,7 +1591,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   var SCHEDULE=null, schedTimer=null;  /* 每日日程（千肥万鱼自有 + DSH 兼容）+ 定时刷新句柄 */
   var typing=null, fullText='', typed=false, lastMood=null, lastFresh=null;
   var lastSpoken='', speaking=false, serverAudio=null, voices=[], voiceSeq=0, clearImgKey=false, clearTtsKey=false;
-  var DSH_PERSONA=null, DIARY_LIST=[], DIARY_ENTRY=null, diaryDoneKey='';
+  var DSH_PERSONA=null, PERSONA_DRAFT=null, DIARY_LIST=[], DIARY_ENTRY=null, diaryDoneKey='';
   var DBK_SPREADS=[], DBK_PAGE=0;  /* 全屏日记本：分页后的跨页数组与当前跨页索引 */
   var MEM_KEY='fishwatch.memory.archive', MEM_DEF={sessions:[],archives:[],lastOrganized:0};
   var MEM=readJSON(MEM_KEY,MEM_DEF), MEM_QUERY='';
@@ -2356,7 +2356,11 @@ body.game-mode #gameFlag{display:inline-flex!important}
     PLAY.gameMode=on;savePlay();
     applyGameModeUI();
     if(on){gameClearEffects();gameTameAudio();gameStopTimers();}
-    else{gameRestoreTimers();gameTameAudio();try{applyAudioState()}catch(e){}try{applyPortrait()}catch(e){}}
+    else{
+      gameRestoreTimers();gameTameAudio();try{applyAudioState()}catch(e){}try{applyPortrait()}catch(e){}
+      /* 进游戏模式时轮询被清掉，但 DSH 那边可能已经答完；退出时按后端状态恢复接收 */
+      if(typeof CHAT!=='undefined'&&CHAT&&CHAT.pending&&!CHAT.pollTimer)startChatPoll();
+    }
     if(announce!==false)toast(on?'游戏模式已开启 · 已暂停后台刷新与动画，点「对话模式」恢复':'已恢复正常模式');
   }
   document.addEventListener('keydown',function(e){
@@ -3101,7 +3105,11 @@ body.game-mode #gameFlag{display:inline-flex!important}
       var sel=$('dshPersonaChar');
       if(sel)sel.onchange=function(){loadDshPersona(this.value)};
       var reset=$('btnDshPersonaReset');
-      if(reset)reset.onclick=function(){if(DSH_PERSONA&&$('dshPersonaText'))$('dshPersonaText').value=DSH_PERSONA.text;toast('已恢复为读到的内容')};
+      if(reset)reset.onclick=function(){
+        PERSONA_DRAFT=null;
+        if(DSH_PERSONA&&$('dshPersonaText'))$('dshPersonaText').value=DSH_PERSONA.text;
+        toast('已恢复为读到的内容');
+      };
       var save=$('btnDshPersonaSave');
       if(save)save.onclick=function(){
         if(!DSH_PERSONA)return;
@@ -3113,7 +3121,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
         fetchJson('/api/persona/dsh',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({id:DSH_PERSONA.id,text:ta.value,expectUpdatedAt:DSH_PERSONA.updatedAt,confirm:true})})
           .then(function(d){
-            DSH_PERSONA=d;playSfx('confirm');
+            DSH_PERSONA=d;PERSONA_DRAFT=null;playSfx('confirm');
             toast(d.unchanged?'内容没有变化':('已同步到 DSH · 备份在 '+d.backup));
             if(panelOpen&&chapter==='persona')renderPanel();
           })
@@ -3510,9 +3518,17 @@ body.game-mode #gameFlag{display:inline-flex!important}
   function loadDshPersona(id){
     return fetchJson('/api/persona/dsh'+(id?'?id='+encodeURIComponent(id):'')).then(function(d){
       DSH_PERSONA=d;
+      PERSONA_DRAFT=null;   /* 重新读取 / 切换角色：以刚读到的内容为准 */
+      /* 先把旧编辑区换成新正文，再重建面板；否则重建时的“保留草稿”会把旧文字又救回来 */
+      var ta=$('dshPersonaText');
+      if(ta)ta.value=typeof d.text==='string'?d.text:'';
       if(panelOpen&&chapter==='persona')renderPanel();
       return d;
     }).catch(function(e){toast('读取 DSH 人格失败：'+e.message)});
+  }
+  function samePersonaText(a,b){
+    var norm=function(s){return String(s==null?'':s).replace(/\r\n/g,'\n')};
+    return norm(a)===norm(b);
   }
   function personaPanel(){
     var d=DSH_PERSONA;
@@ -3533,7 +3549,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
        '<div class="field"><label>切换人格</label><select id="dshPersonaChar">'+
          d.characters.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===d.id?' selected':'')+'>'+esc(c.name)+(c.current?' · DSH 当前':'')+'</option>'}).join('')+
        '</select></div>'+
-       '<textarea class="pc-edit" id="dshPersonaText" spellcheck="false" aria-label="人格内容">'+esc(d.text)+'</textarea>'+
+       '<textarea class="pc-edit" id="dshPersonaText" spellcheck="false" aria-label="人格内容">'+esc(PERSONA_DRAFT&&PERSONA_DRAFT.id===d.id?PERSONA_DRAFT.text:d.text)+'</textarea>'+
+       (PERSONA_DRAFT&&PERSONA_DRAFT.id===d.id&&!samePersonaText(PERSONA_DRAFT.text,d.text)?'<div class="note" style="color:var(--accent)">编辑区有未保存的修改；后台刷新不会覆盖它。</div>':'')+
        '<div class="pc-warn">点「保存到 DSH」会先把原文备份到千肥万鱼的 data/persona-backups/，再写回 persona.md。DSH 下次加载这个角色时生效；正在聊天时可以切一次角色让它重新读取。</div>'+
        '<div class="mrow"><button class="mbtn primary" id="btnDshPersonaSave">保存到 DSH</button>'+
        '<button class="mbtn" id="btnDshPersonaReload">重新读取</button>'+
@@ -3555,6 +3572,14 @@ body.game-mode #gameFlag{display:inline-flex!important}
     if(TASKBAR_IDS.indexOf(id)<0){var s=scriptFor(id);say(s[0],s[1])}
   }
   function renderPanel(){
+    /* 面板每 8 秒会随快照重建一次：先把人格编辑区的内容、光标和焦点存下来，
+     * 重建后原样放回，避免打字打到一半被后台刷新清掉。 */
+    var pe=null, oldTa=$('dshPersonaText');
+    if(oldTa){
+      pe={value:oldTa.value,start:oldTa.selectionStart,end:oldTa.selectionEnd,
+          focused:document.activeElement===oldTa,scrollTop:oldTa.scrollTop};
+      PERSONA_DRAFT={id:(DSH_PERSONA&&DSH_PERSONA.id)||'',text:pe.value};
+    }
     if(panelView==='menu'){
       $('panel').classList.remove('detail');
       $('panel').classList.add('mode-menu');
@@ -3593,6 +3618,17 @@ body.game-mode #gameFlag{display:inline-flex!important}
     $('panelBody').innerHTML=body;
     panelActions();
     bindPanelControls();
+    if(pe&&chapter==='persona'){
+      var ta=$('dshPersonaText');
+      if(ta){
+        ta.value=pe.value;
+        if(pe.focused){
+          ta.focus();
+          try{ta.setSelectionRange(pe.start,pe.end)}catch(e){}
+          ta.scrollTop=pe.scrollTop;
+        }
+      }
+    }
   }
 
   function apply(data,first){
@@ -3869,8 +3905,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
       sovits:collectSovits(),
       chat:{dshBaseUrl:($('chatDshBase')&&$('chatDshBase').value.trim())||'',
             dshToken:($('chatDshToken')&&$('chatDshToken').value.trim())||'',
-            clearDshToken:CLEAR_DSH_TOKEN,
-            dshSessionId:(SETTINGS&&SETTINGS.chat&&SETTINGS.chat.dshSessionId)||''},
+            clearDshToken:CLEAR_DSH_TOKEN},   /* 会话目标由切换接口单独维护，普通保存不提交，避免把旧缓存写回去 */
       schedule:{enabled:$('schEnabled').checked,driveScene:$('schScene').checked,
                 driveSlot:$('schSlot').checked,drivePortrait:$('schPortrait').checked,
                 source:($('schSource')&&$('schSource').value)||'auto',
@@ -4654,7 +4689,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
 
   /* ---------- 对话：输入 → DSH 会话 → 回到下方对话框 ---------- */
-  var CHAT={open:false,state:null,sending:false,pollTimer:0,target:''};
+  var CHAT={open:false,state:null,sending:false,pollTimer:0,target:'',pending:false};
 
   /* 对话记录里「你那一行」显示的名字：优先独立的 chatName，没填才回退到「她怎么称呼你」 */
   function chatOwnerName(){return (SETTINGS&&SETTINGS.chatName)||(SETTINGS&&SETTINGS.ownerName)||(S&&S.identity&&S.identity.owner)||'我'}
@@ -4784,6 +4819,10 @@ body.game-mode #gameFlag{display:inline-flex!important}
     CHAT.state=j||{};
     var d=CHAT.state.dsh||{},list=d.sessions||[],sel=d.selected||'';
     CHAT.target=sel;
+    CHAT.pending=!!(j&&j.pending);
+    /* 切换会话的接口已经落盘，这里同步内存缓存：否则之后保存音量等设置时
+     * 还会拿着旧值去提交，把目标悄悄切回去。 */
+    if(SETTINGS&&SETTINGS.chat)SETTINGS.chat.dshSessionId=sel;
     var box=$('chatSession');if(!box)return;
     box.textContent='';
     /* 选定的会话失效时给一个空占位，别让下拉框自动显示第一个（那会看成已选中） */
@@ -4817,7 +4856,11 @@ body.game-mode #gameFlag{display:inline-flex!important}
     try{CHAT.open=localStorage.getItem('fishwatch.chatOpen')==='1'}catch(e){CHAT.open=false}
     applyChatOpen();
     fetch('/api/chat/state',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
-      if(j&&j.ok)applyChatState(j);
+      if(j&&j.ok){
+        applyChatState(j);
+        /* 刷新页面后 DSH 可能还在跑：后端说 pending 就接着收，别让答案丢在半路 */
+        if(j.pending&&!gameModeOn())startChatPoll();
+      }
     }).catch(function(e){
       var t=$('chatTarget');if(t)t.textContent='读不到配置';
       var dot=$('chatDot');if(dot)dot.classList.add('off');
@@ -4946,9 +4989,23 @@ body.game-mode #gameFlag{display:inline-flex!important}
       });
     }).then(function(j){
       CHAT.sending=false;if(btn)btn.disabled=false;
-      if(j.cancelled){stopThinking();toast('这条没有发出：目标会话已切换或记录已清空');return}
+      if(j.cancelled){stopThinking();return}   /* 发送期间被清空记录 / 切换目标 → 静默丢弃 */
       if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
-      if(j.pending){say(who,'……（还在想，想到就说）');startChatPoll();return}
+      if(j.pending){
+        CHAT.pending=true;
+        if(j.reply){
+          /* 先到一句中途说明：照常显示，然后继续轮询到这一轮真正结束 */
+          var raw=j.reply,rep=cleanReply(raw)||'……';
+          say(who,rep);
+          atriReact(rep);
+          var gotOpts=maybeOfferOptions(rep,raw);
+          if(!gotOpts)offerSceneIfMentioned(rep);
+        }else{
+          say(who,'……（还在想，想到就说）');
+        }
+        startChatPoll();return;
+      }
+      CHAT.pending=false;
       stopThinking();
       bondAdd('favor',1); /* 她回了话 → 好感 +1 */
       var rawRep=j.reply||'',rep=cleanReply(rawRep)||'……';
@@ -4961,30 +5018,43 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
   function cancelChatPoll(){
     if(CHAT.pollTimer){clearTimeout(CHAT.pollTimer);CHAT.pollTimer=0}
+    CHAT.pending=false;
     stopThinking();
   }
   function startChatPoll(){
     if(CHAT.pollTimer)return;
-    var who=shortName()||'亚托莉',started=Date.now(),tries=0;
+    CHAT.pending=true;
+    var who=shortName()||'亚托莉',started=Date.now(),tries=0,favorGiven=false;
     function tick(){
-      if(Date.now()-started>4*60*1000){CHAT.pollTimer=0;stopThinking();say(who,'……好像想太久了，等下再问我一次吧');return}
+      if(Date.now()-started>8*60*1000){CHAT.pollTimer=0;CHAT.pending=false;stopThinking();say(who,'……好像想太久了，等下再问我一次吧');return}
       fetch('/api/chat/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
         .then(function(r){return r.json()})
         .then(function(j){
-          if(j.cancelled){CHAT.pollTimer=0;stopThinking();return}  /* 记录已清空 / 目标已切换 → 结束轮询 */
+          if(j.cancelled){CHAT.pollTimer=0;CHAT.pending=false;stopThinking();return}  /* 记录已清空 / 目标已切换 → 结束轮询 */
+          if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
           if(j.reply){
-            CHAT.pollTimer=0;stopThinking();
-            if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
-            bondAdd('favor',1);
-            var rawRep=j.reply||'',rep=cleanReply(rawRep);
+            stopThinking();
+            if(!favorGiven){bondAdd('favor',1);favorGiven=true}
+            var rawRep=j.reply||'',rep=cleanReply(rawRep)||'……';
             say(who,rep);
             atriReact(rep);   /* 异步回话同样触发表情反应 */
             var gotOpts=maybeOfferOptions(rep,rawRep); /* 异步回话里问了问题，同样给选项 */
             if(!gotOpts)offerSceneIfMentioned(rep);
+            /* 中途说明也可能是最终答案；只有后端说这一轮结束了才停 */
+            if(j.pending){
+              CHAT.pending=true;tries=0;
+              CHAT.pollTimer=setTimeout(tick,2600);
+              return;
+            }
+            CHAT.pollTimer=0;CHAT.pending=false;
             return;
           }
-          if(!j.pending){CHAT.pollTimer=0;stopThinking();say(who,'……没等到回复，可能被别的任务打断了');return}
-          tries++;
+          if(!j.pending){
+            CHAT.pollTimer=0;CHAT.pending=false;stopThinking();
+            if(!j.done&&!j.timedOut)say(who,'……没等到回复，可能被别的任务打断了');
+            return;
+          }
+          CHAT.pending=true;tries++;
           CHAT.pollTimer=setTimeout(tick,Math.min(5000,2200+tries*300));
         })
         .catch(function(){tries++;CHAT.pollTimer=setTimeout(tick,4500)});

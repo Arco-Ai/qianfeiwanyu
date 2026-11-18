@@ -1019,6 +1019,7 @@ function assetsPayload() {
  *   scenes.json                        场景库定义（always）
  *   assets/audio/index.json            音频清单（always）
  *   assets/uploads/*                   上传素材（always）
+ *   assets/audio/bgm/upload_*          用户上传的曲目（always）
  *   assets/bg/*  assets/ui/*           内置背景/UI（仅 full 范围）
  *   assets/audio/bgm|amb|sfx/*         音频文件（仅 full 范围）
  * 导入的安全边界：仅写 manifest 列出的相对路径，逐个经 localPath() 前缀校验，
@@ -1028,7 +1029,7 @@ const PACK_FORMAT = 'fishwatch-assetpack';
 const PACK_VERSION = 1;
 const PACK_CONFIG_FILES = ['assets.json', 'scenes.json', 'assets/audio/index.json'];
 const PACK_SAFE = /^(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/;   // 相对路径、无 .. 无盘符
-const PACK_ALLOWED_EXT = /\.(?:png|jpe?g|webp|gif|ogg|mp3|m4a|wav|webm|json)$/i;
+const PACK_ALLOWED_EXT = /\.(?:png|jpe?g|webp|gif|ogg|mp3|m4a|wav|flac|webm|json)$/i;
 /* 素材包允许写入的路径：仅限明确列出的配置文件，以及 assets/ 下的素材。
  * settings.json / persona.json / *.yml / server.js 等一律拒绝，避免「导入素材」越权覆盖配置。 */
 function packWriteAllowed(rel) {
@@ -1137,7 +1138,7 @@ function collectPackFiles(scope) {
   for (const c of PACK_CONFIG_FILES) push(c);
   const dirs = scope === 'full'
     ? ['assets/uploads', 'assets/bg', 'assets/ui', 'assets/audio']
-    : ['assets/uploads'];
+    : ['assets/uploads', 'assets/audio/bgm'];
   const addFile = (rel, full) => {
     if (!PACK_SAFE.test(rel) || !PACK_ALLOWED_EXT.test(rel)) return;
     try { if (fs.statSync(full).isFile()) out.push({ name: rel, data: fs.readFileSync(full) }); }
@@ -1158,6 +1159,8 @@ function collectPackFiles(scope) {
         try { subs = fs.readdirSync(full); } catch (e) { continue; }
         for (const sn of subs) addFile(rel + '/' + sn, path.join(full, sn));
       } else {
+        /* 轻量包只带用户自己上传的曲目；内置 BGM 接收方本来就有 */
+        if (scope !== 'full' && d === 'assets/audio/bgm' && n.indexOf('upload_') !== 0) continue;
         addFile(rel, full);
       }
     }
@@ -1472,16 +1475,24 @@ function resolveDay(now, cfg) {
   const source = cfg.source;
   const useFish = source === 'auto' || source === 'fishwatch' || source === 'manual';
   const useDsh = source === 'auto' || source === 'dsh';
-  const chain = [];
-  if (source === 'auto') chain.push([key, 'fish'], [key, 'dsh'], [prevKey, 'fish'], [prevKey, 'dsh']);
-  else if (source === 'fishwatch' || source === 'manual') chain.push([key, 'fish'], [prevKey, 'fish']);
-  else chain.push([key, 'dsh'], [prevKey, 'dsh']);
-  for (let i = 0; i < chain.length; i++) {
-    const d = chain[i][1] === 'fish' ? loadFishDay(chain[i][0]) : loadDshDay(chain[i][0]);
+  /* 先只看今天：自有日程 → DSH 日程。今天确实没有，才轮到自动生成，
+   * 最后才回退到昨天。否则「昨天有日程」会永远挡住今天的自动生成。 */
+  const today = [];
+  if (useFish) today.push([key, 'fish']);
+  if (useDsh) today.push([key, 'dsh']);
+  for (let i = 0; i < today.length; i++) {
+    const d = today[i][1] === 'fish' ? loadFishDay(today[i][0]) : loadDshDay(today[i][0]);
     if (d && d.items.length) return d;
   }
   if (cfg.autoGenerate && (source === 'auto' || source === 'fishwatch')) {
     return persistDay(generateDay(key));
+  }
+  const prev = [];
+  if (useFish) prev.push([prevKey, 'fish']);
+  if (useDsh) prev.push([prevKey, 'dsh']);
+  for (let i = 0; i < prev.length; i++) {
+    const d = prev[i][1] === 'fish' ? loadFishDay(prev[i][0]) : loadDshDay(prev[i][0]);
+    if (d && d.items.length) return d;
   }
   return null;
 }
@@ -1573,7 +1584,7 @@ const ASSET_TYPES = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.webp': 'image/webp', '.gif': 'image/gif',
   '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4',
-  '.wav': 'audio/wav', '.webm': 'video/webm',
+  '.wav': 'audio/wav', '.flac': 'audio/flac', '.webm': 'video/webm',
 };
 function serveAsset(res, name) {
   if (!SERVE_NAME.test(name) && !SERVE_AUDIO_NAME.test(name)) { res.writeHead(400); res.end('bad name'); return; }
@@ -2242,8 +2253,13 @@ async function chatViaDsh(text) {
   }
   /* 最后一轮读到的内容同样要先确认没被作废，再决定返回还是挂起 */
   if (epoch !== chatEpoch) return cancelledChat(target);
-  if (last) return { reply: last, sessionId: target.id, sessionTitle: target.title, done: false };
-  chatPending = { sessionId: target.id, cursor, text, at: Date.now() };
+  if (last) {
+    /* 已经有中途说明、但这一轮还没结束：继续挂在 pending 上，
+     * 前端先显示这段话，再轮询直到 turn/end，别把后半段丢掉。 */
+    chatPending = { sessionId: target.id, cursor, text, at: Date.now(), pushed: last };
+    return { reply: last, sessionId: target.id, sessionTitle: target.title, done: false, pending: true };
+  }
+  chatPending = { sessionId: target.id, cursor, text, at: Date.now(), pushed: '' };
   return { reply: '', sessionId: target.id, sessionTitle: target.title, pending: true };
 }
 
@@ -2253,7 +2269,7 @@ async function pollChatPending() {
   const epoch = chatEpoch;
   if (Date.now() - job.at > 6 * 60 * 1000) {
     if (chatPending === job) chatPending = null;
-    return { ok: true, pending: false, reply: '' };
+    return { ok: true, pending: false, reply: '', timedOut: true };
   }
   let got;
   try { got = await dshCollect(job.sessionId, job.cursor); }
@@ -2264,11 +2280,21 @@ async function pollChatPending() {
   /* 等待期间被清空记录 / 切换会话作废：丢弃这次结果，不写回、不弹回复 */
   if (chatPending !== job || epoch !== chatEpoch) return { ok: true, pending: false, reply: '', cancelled: true };
   job.cursor = got.cursor;
-  if (got.reply) {
+  /* 同一段文字可能被连续读到：pushed 记住已经给过前端的部分，避免重复刷屏 */
+  if (got.reply && got.reply !== job.pushed) {
     const r = got.reply;
-    chatPending = null;
+    job.pushed = r;
+    job.at = Date.now();
     pushChat('assistant', r);
-    return { ok: true, pending: false, reply: r, done: got.ended, log: chatLogTail(20) };
+    if (got.ended) {
+      chatPending = null;
+      return { ok: true, pending: false, reply: r, done: true, log: chatLogTail(20) };
+    }
+    return { ok: true, pending: true, reply: r, done: false, log: chatLogTail(20) };
+  }
+  if (got.ended) {
+    chatPending = null;
+    return { ok: true, pending: false, reply: '', done: true, log: chatLogTail(20) };
   }
   return { ok: true, pending: true, reply: '' };
 }
@@ -2383,6 +2409,7 @@ async function ensureSoVits(force) {
   SOVITS_STATE.status = 'starting';
   SOVITS_STATE.detail = '正在启动本地 GPT-SoVITS，首次加载模型约需 30–90 秒…';
   SOVITS_STATE.startedAt = Date.now();
+  let spawnFailed = '';
   try {
     let child;
     if (launcher) {
@@ -2397,11 +2424,20 @@ async function ensureSoVits(force) {
         cwd: dir, detached: true, stdio: 'ignore',
       });
     }
+    /* spawn 失败（最常见是 python 不在 PATH）是异步 error 事件：
+     * 不监听会直接把整个服务带崩。这里只把语音标记为失败，聊天照常可用。 */
+    child.on('error', (err) => {
+      spawnFailed = (err && err.message) || String(err);
+      SOVITS_STATE.status = 'error';
+      SOVITS_STATE.detail = '语音启动失败：' + spawnFailed + '（聊天不受影响）';
+      SOVITS_STATE.pid = 0;
+    });
     SOVITS_STATE.pid = child.pid || 0;
     child.unref();
     /* 后台轮询端口，最长等 150 秒；就绪后把状态更新为 ready */
     const deadline = Date.now() + 150000;
     const poll = async () => {
+      if (spawnFailed) return;
       const up = await portOpen(host, port, 800);
       if (up) {
         SOVITS_STATE.status = 'ready';
@@ -2419,6 +2455,7 @@ async function ensureSoVits(force) {
     SOVITS_STATE.status = 'error';
     SOVITS_STATE.detail = '自动启动失败：' + e.message;
   }
+  return SOVITS_STATE;
 }
 function sovitsStatus() {
   const url = sovitsEndpoint();

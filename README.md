@@ -31,7 +31,7 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.3-win-x64.zip`（约 290 MB）。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.4-win-x64.zip`（约 290 MB）。
 2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
@@ -136,7 +136,8 @@ dsh plugin --profile desktop add ./dsh-plugin
 - `settings.json` 中称呼、`portrait`、`dshSessionId`、API 密钥均为空。
 - `chat-log.json` 为 `[]`（不含你的私人聊天记录）。
 - 不含你的 DSH 会话 ID、SoVITS 参考音频路径等本机信息。
-- 打包时 `data/` 与 `assets/uploads/` **整目录不复制**（不再依赖扩展名清单，`.md` / `.txt` 人格备份也不会漏），随后只创建空目录骨架；`node desktop/build-portable.js` 结束前会自检，发现任何运行数据或私人身份信息就中止打包。
+- 打包时 `data/`、`assets/uploads/` 与 `assets/audio/bgm/upload_*` **整目录 / 整类不复制**（不依赖扩展名清单，`.md` / `.txt` 人格备份也不会漏），随后只创建空目录骨架；`assets.json` 会清掉指向上传素材或不存在文件的槽位，`assets/audio/index.json` 会移除 `custom` 与 `upload_*` 条目。
+- 打包在 `dist/千肥万鱼.building` 里完成，成功后才替换 `dist/千肥万鱼`；如果旧版已经被运行过、里面有聊天 / 日记 / 上传素材，会先把整个旧版改名成 `dist/千肥万鱼-备份-时间戳` 留档，绝不直接删除。结束前还会自检，发现运行数据、私人身份信息或失效素材引用就中止打包。
 
 每位使用者第一次打开后，可在「设置」里填自己的称呼、DSH 地址和密钥。这些个人数据都保存在本地，不会上传。
 
