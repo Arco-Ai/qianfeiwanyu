@@ -410,6 +410,12 @@ pre{font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all;max
 .assetlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;max-height:120px;overflow:auto}
 .assetlist .chip{cursor:pointer}
 .assetlist .chip.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.bgmmodes{display:flex;gap:8px;flex-wrap:wrap}
+.bgmmodes .mbtn{padding:5px 12px;font-size:11px}
+.bgmmodes .mbtn.on{background:linear-gradient(180deg,#3d7fae,#2a628e);border-color:#2a628e;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.bgmtracks{max-height:none;overflow:visible}
+.bgmtracks .chip{cursor:pointer;padding:6px 11px;font-size:12px}
+.bgmtracks .chip.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
 .pcppreview{font-size:11.5px;line-height:1.8;color:var(--ink);max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .pcppreview>div{margin:2px 0}
 .pcppreview .k{color:var(--accent);font-weight:600}
@@ -1317,26 +1323,22 @@ body.game-mode #gameFlag{display:inline-flex!important}
 
           <div class="mgroup">
             <h3>音乐选择</h3>
-            <p class="desc">内置曲目为原创程序化合成。可固定循环某一首、勾选多首随机轮换，或上传你自己的本地音乐。上传的音频只保存在本机 <code>assets/audio/bgm/</code>，不会联网；也随时可以删除。选好后即时生效、自动记住。</p>
+            <p class="desc">内置曲目为原创程序化合成，下面全部列出。点一下曲目就固定循环它；选「随机轮换」后可点多首加入轮换；选「按时段自动」则随场景自动换曲。也能上传自己的音乐，只保存在本机 <code>assets/audio/bgm/</code>，不联网、随时可删。设好即时生效、自动记住。</p>
             <div class="field"><label>播放方式</label>
-              <select id="bgmMode">
-                <option value="auto">按时段 / 场景自动切换（默认）</option>
-                <option value="single">固定单曲循环</option>
-                <option value="rotate">多首随机轮换</option>
-              </select>
+              <div id="bgmModes" class="bgmmodes">
+                <button type="button" class="mbtn mode" data-mode="auto">按时段自动</button>
+                <button type="button" class="mbtn mode" data-mode="single">单曲循环</button>
+                <button type="button" class="mbtn mode" data-mode="rotate">随机轮换</button>
+              </div>
             </div>
-            <div class="field" id="bgmSingleWrap" style="display:none"><label>固定曲目</label><select id="bgmSingle"></select></div>
-            <div id="bgmRotateWrap" style="display:none">
-              <label>轮换曲目（勾选多首）</label>
-              <div id="bgmRotateList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px"></div>
-            </div>
+            <div class="field" style="display:block"><label id="bgmTracksLabel">曲目（点一下即选）</label><div id="bgmTracks" class="assetlist bgmtracks"></div></div>
             <div class="mrow" style="align-items:flex-start">
               <label class="mbtn primary" for="fileBgm" style="cursor:pointer">选择本地音乐</label>
               <input type="file" id="fileBgm" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/x-m4a,audio/flac,.mp3,.ogg,.wav,.m4a,.flac" style="display:none">
               <button class="mbtn" id="btnUploadBgm">上传并加入曲库</button>
             </div>
             <p class="desc" id="bgmUploadStatus" style="margin:8px 0 0">支持 MP3 / OGG / WAV / M4A / FLAC，单个不超过 12 MB。</p>
-            <div class="field" style="display:block"><label>我的上传</label><div id="bgmCustomList" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+            <div class="field" style="display:block"><label>我的上传（点 × 删除）</label><div id="bgmCustomList" class="assetlist"></div></div>
           </div>
         </section>
 
@@ -2205,7 +2207,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   var COLL_DEF={cg:{},quotes:[]};
   var PLAY=readJSON(PLAY_KEY,PLAY_DEF), BOND=readJSON(BOND_KEY,BOND_DEF), COLL=readJSON(COLL_KEY,COLL_DEF);
   var AUDIO_IDX=null, bgmAudio=null, ambAudio=null, bgmKey='', ambKey='', userBgmOff=false, AUDIO_FALLBACK='';
-  var BGM_ALL=[], BGM_ROTATE_AT=0;
+  var BGM_ALL=[], BGM_ROTATE_AT=0, BGM_ARMED=false;
   var DEST_TODAY=readJSON(DEST_KEY,{}), lastSlotForDest='', weatherTimer=0;
 
   function readJSON(k,def){try{var v=JSON.parse(localStorage.getItem(k));if(v&&typeof v==='object')return Object.assign({},def,v)}catch(e){}return Object.assign({},def)}
@@ -2664,7 +2666,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     bgmKey=file;
     if(!bgmAudio){bgmAudio=new Audio();bgmAudio.loop=true;}
     bgmAudio.src='/assets/'+file;bgmAudio.volume=(PLAY.bgmVol||35)/100;
-    var q=bgmAudio.play();if(q&&q.catch)q.catch(function(){userBgmOff=true;syncBgmBtn()});
+    var q=bgmAudio.play();if(q&&q.catch)q.catch(function(){syncBgmBtn();armBgmAutoStart()});
     syncBgmBtn();
   }
   function playAmb(sceneId){
@@ -2681,6 +2683,17 @@ body.game-mode #gameFlag{display:inline-flex!important}
     if(bgmAudio){bgmAudio.pause();bgmKey=''}
     if(ambAudio){ambAudio.pause();ambKey=''}
     userBgmOff=true;syncBgmBtn();
+  }
+  function armBgmAutoStart(){
+    if(BGM_ARMED)return;BGM_ARMED=true;
+    var kick=function(){
+      BGM_ARMED=false;
+      document.removeEventListener('pointerdown',kick,true);
+      document.removeEventListener('keydown',kick,true);
+      if(PLAY.audioBgm&&!userBgmOff){bgmKey='';playBgm(slotActive(),portraitKey())}
+    };
+    document.addEventListener('pointerdown',kick,true);
+    document.addEventListener('keydown',kick,true);
   }
   function syncBgmBtn(){
     var b=$('btnBgm');if(!b)return;
@@ -2713,28 +2726,32 @@ body.game-mode #gameFlag{display:inline-flex!important}
     return MAP[name]||name;
   }
   function renderBgmPicker(){
-    var sel=$('bgmSingle');
-    if(sel){
-      var cur=PLAY.bgmSingle||'';
-      sel.innerHTML='<option value="">— 选择一首 —</option>';
-      BGM_ALL.forEach(function(f){var o=document.createElement('option');o.value=f;o.textContent=bgmLabel(f);sel.appendChild(o)});
-      sel.value=(BGM_ALL.indexOf(cur)>=0)?cur:'';
-    }
-    var box=$('bgmRotateList');
+    var box=$('bgmTracks');
     if(box){
       box.innerHTML='';
-      var chosen=PLAY.bgmRotate||[];
       BGM_ALL.forEach(function(f){
-        var lab=document.createElement('label');lab.style.cssText='font-size:11px;display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid rgba(150,192,224,.42);border-radius:12px;cursor:pointer';
-        var cb=document.createElement('input');cb.type='checkbox';cb.checked=chosen.indexOf(f)>=0;cb.dataset.bgm=f;cb.style.accentColor='var(--accent)';
-        cb.onchange=function(){
-          var arr=(PLAY.bgmRotate||[]).filter(function(x){return x!==f});
-          if(this.checked)arr.push(f);
-          PLAY.bgmRotate=arr;savePlay();BGM_ROTATE_AT=0;
-          if((PLAY.bgmMode||'auto')==='rotate'&&this.checked){userBgmOff=false;playBgm(slotActive(),portraitKey())}
+        var chip=document.createElement('span');
+        chip.className='chip';chip.textContent=bgmLabel(f);chip.dataset.bgm=f;
+        chip.title='点击选择：'+bgmLabel(f);
+        chip.onclick=function(){
+          var m=PLAY.bgmMode||'auto';
+          if(m==='rotate'){
+            var arr=(PLAY.bgmRotate||[]).slice();
+            var i=arr.indexOf(f);
+            if(i>=0)arr.splice(i,1);else arr.push(f);
+            PLAY.bgmRotate=arr;
+          }else{
+            PLAY.bgmMode='single';PLAY.bgmSingle=f;
+          }
+          savePlay();syncBgmModeUI();BGM_ROTATE_AT=0;
+          userBgmOff=false;bgmKey='';if(bgmAudio)bgmAudio.pause();
+          playBgm(slotActive(),portraitKey());
+          toast((m==='rotate'?'已加入轮换：':'已切换：')+bgmLabel(f));
         };
-        lab.appendChild(cb);lab.appendChild(document.createTextNode(bgmLabel(f)));box.appendChild(lab);
+        box.appendChild(chip);
       });
+      var lab=$('bgmTracksLabel');
+      if(lab)lab.textContent=(PLAY.bgmMode==='rotate')?'曲目（点选加入轮换，可多首）':'曲目（点一下即固定播放）';
     }
     var cl=$('bgmCustomList');
     if(cl){
@@ -2761,9 +2778,18 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
   function syncBgmModeUI(){
     var mode=PLAY.bgmMode||'auto';
-    if($('bgmMode'))$('bgmMode').value=mode;
-    if($('bgmSingleWrap'))$('bgmSingleWrap').style.display=(mode==='single')?'':'none';
-    if($('bgmRotateWrap'))$('bgmRotateWrap').style.display=(mode==='rotate')?'':'none';
+    var wrap=$('bgmModes');
+    if(wrap)Array.prototype.forEach.call(wrap.querySelectorAll('.mode'),function(b){
+      b.classList.toggle('on',b.dataset.mode===mode);
+    });
+    var box=$('bgmTracks');
+    if(box)Array.prototype.forEach.call(box.querySelectorAll('.chip'),function(c){
+      var f=c.dataset.bgm||'';
+      var sel=(mode==='single'&&PLAY.bgmSingle===f)||(mode==='rotate'&&(PLAY.bgmRotate||[]).indexOf(f)>=0);
+      c.classList.toggle('sel',!!sel);
+    });
+    var lab=$('bgmTracksLabel');
+    if(lab)lab.textContent=(mode==='rotate')?'曲目（点选加入轮换，可多首）':'曲目（点一下即固定播放）';
   }
 
   /* ---------- 日程选择：下一步去哪里 ---------- */
@@ -5325,15 +5351,13 @@ body.game-mode #gameFlag{display:inline-flex!important}
       else{userBgmOff=true;if(bgmAudio)bgmAudio.pause();syncBgmBtn()}
     };
     /* 音乐选择栏 */
-    if($('bgmMode'))$('bgmMode').onchange=function(){
-      PLAY.bgmMode=this.value;savePlay();syncBgmModeUI();
+    if($('bgmModes'))$('bgmModes').onclick=function(e){
+      var btn=(e.target&&e.target.closest)?e.target.closest('.mode'):null;
+      if(!btn)return;
+      PLAY.bgmMode=btn.dataset.mode;savePlay();syncBgmModeUI();
       userBgmOff=false;BGM_ROTATE_AT=0;
       if(bgmAudio)bgmAudio.pause();bgmKey='';
       if(PLAY.audioBgm)playBgm(slotActive(),portraitKey());else syncBgmBtn();
-    };
-    if($('bgmSingle'))$('bgmSingle').onchange=function(){
-      PLAY.bgmSingle=this.value;savePlay();
-      if((PLAY.bgmMode||'auto')==='single'){userBgmOff=false;bgmKey='';if(bgmAudio)bgmAudio.pause();playBgm(slotActive(),portraitKey())}
     };
     if($('btnUploadBgm'))$('btnUploadBgm').onclick=function(){
       var f=$('fileBgm')&&$('fileBgm').files&&$('fileBgm').files[0];
