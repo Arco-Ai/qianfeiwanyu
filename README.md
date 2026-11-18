@@ -31,7 +31,7 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.2-win-x64.zip`（约 290 MB）。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载 `qianfeiwanyu-v1.0.3-win-x64.zip`（约 290 MB）。
 2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
@@ -46,7 +46,7 @@
 node server.js
 ```
 
-然后浏览器打开 `http://127.0.0.1:18765/`。Windows 用户也可直接双击 `start.cmd`。
+启动后控制台会打印**带访问令牌的地址**（形如 `http://127.0.0.1:18765/#fw_token=...`），**请用这个地址打开**；Windows 下 `start.cmd` 和直接 `node server.js` 都会自动帮你打开。令牌只存在你自己主目录的 `~/.fish-watch/api-token`，删掉后下次启动会重新生成。详见「访问令牌」一节。
 
 > 源码模式的后端只用 Node 内置模块，**无需 npm install**。只有想自己打包 exe 时才需要 Electron（`npm install`）。
 
@@ -95,9 +95,27 @@ dsh plugin --profile desktop add ./dsh-plugin
 ### 可选：本地语音 GPT-SoVITS
 
 - 没装也能正常用，只是不朗读（默认使用浏览器自带语音）。
-- 装了的话会自动探测常见安装位置；也可设环境变量 `FISH_SOVITS_DIR` 指向安装目录。
+- 装了的话会探测 `FISH_SOVITS_DIR`、程序目录下的 `GPT-SoVITS`、用户目录下的 `GPT-SoVITS` 三处（不再全盘扫描盘符）。
+- **默认不自动启动**：启动脚本属于本机可执行文件，交给用户决定。在「设置 → 语音 → 本地 GPT-SoVITS」里点「启动本地 SoVITS」即可，按钮旁边会显示实际启动的脚本路径；想每次开机自动拉起，再勾上「自动启动」。
 
-## 三、数据放在哪里
+## 三、访问令牌（安全说明）
+
+服务只监听 `127.0.0.1`，但**同一台机器上的其他账户、其他进程同样能连上这个端口**，所以除两个只读接口外，所有 `/api/` 都要求令牌：
+
+| 接口 | 是否需要令牌 | 说明 |
+| --- | --- | --- |
+| `GET /api/health` | 否 | 只回答「端口上是不是千肥万鱼」，不含任何路径 |
+| `GET/POST /api/dsh/agent-state` | 否 | DSH 插件读/推活动状态，只影响表情，不碰会话内容 |
+| 其余所有 `/api/*` | **是** | 包括设置、聊天、日记、人格、素材包导入导出、外部 API 代理 |
+
+- 令牌首次运行随机生成（24 字节），存放在 `~/.fish-watch/api-token`，权限 `0600`，只在当前用户可读。
+- 桌面版由主进程把令牌放进页面地址的 `#fw_token=`（fragment 不会发给服务端，也不进日志），用户无感。
+- 浏览器方式打开时，用控制台打印的带令牌地址；若直接开裸地址，页面会弹一次输入框。
+- 想换令牌：关掉程序，删掉那个文件，再启动。
+- **能挡什么**：同机其他账户、端口转发/反代暴露、盲目扫描的本机脚本。**挡不住什么**：已经以你的账户在跑的恶意程序——它能直接读令牌文件、读进程内存，这类风险只能靠系统层面防护。
+- 素材文件（`/assets/*`）为了 `<img>` 能直接加载没有加令牌，属于已知取舍。
+
+## 四、数据放在哪里
 
 | 内容    | 位置                |
 | ----- | ----------------- |
@@ -107,10 +125,11 @@ dsh plugin --profile desktop add ./dsh-plugin
 | 每日日程  | `data/schedules/` |
 | 日记    | `data/diaries/`   |
 | 聊天记录  | `chat-log.json`   |
+| 安全审计  | `data/security.log`（只记「改了哪个文件」，不记内容） |
 
 程序只读取 DSH 目录（默认 `%USERPROFILE%\.dsh`），不会改动它，除非你手动点「保存到 DSH」。
 
-## 四、发布前请确认
+## 五、发布前请确认
 
 分发给他人前，建议保持以下出厂状态（本仓库已处理好）：
 
@@ -121,7 +140,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 
 每位使用者第一次打开后，可在「设置」里填自己的称呼、DSH 地址和密钥。这些个人数据都保存在本地，不会上传。
 
-## 五、常见问题
+## 六、常见问题
 
 - **提示「选定的 DSH 会话已经不在列表里」？** 说明 DSH 里那个会话被删除、改名，或 DSH 重启后换了 id。打开对话面板顶部的会话下拉重新选一个即可；程序不会为了"能发出去"而自动改发到别的会话。
 - **没有声音？** 打开「设置 → 音量」集中调整各类声音的开关与大小（语音、音乐/BGM、环境音、音效），拖动即时生效；BGM / 环境音 / 音效的开关也都在这同一页。也可以直接把鼠标移到右下工具栏的**喇叭图标**上，弹出的快捷音量条可随手调这四路音量。
@@ -129,7 +148,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 - **能换盘符 / 换用户名吗？** 可以。所有路径都相对程序目录解析，不写死任何电脑路径。
 - **需要联网吗？** 日常使用不需要。只有在你主动点「生成立绘」「朗读」并配置了对应密钥时才会发起外部请求。
 
-## 六、素材署名
+## 七、素材署名
 
 - **鲸鱼娘素材**：来自 [AATINF/deepseek-whale-girl-assets](https://github.com/AATINF/deepseek-whale-girl-assets)（二创扩展包，AI 生成），已抠成透明底 PNG 存于 `assets/whale/`（无损母版 WebP 备份在 `assets/whale-src/`，不随程序发布）。角色参考 [TreapGoGo/deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（MIT License, Copyright (c) 2026 TreapGoGo）。再分发请保留此署名，并如实标注使用了生成式 AI 辅助。
 - **场景背景图**：`assets/bg/` 下 14 个场景 × 3 时段（白天 / 傍晚 / 夜晚）共 84 张背景图（自宅 / 学校 / 教室 / 上学路 / 街道 / 餐厅 / 神社 / 澡堂 / 医院 / 山里等），均为**生成式 AI 绘制**的二次元场景，已转为 JPG 并生成 `-t` 缩略图。每张由 AI 生成、无第三方版权素材；场景清单见 `scenes.json`。
@@ -144,7 +163,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 - **环境音 / 音效**：`assets/audio/amb/`、`assets/audio/sfx/` 由本地噪声合成，无第三方版权问题。
 - **其他角色立绘**：未随本仓库提供；如需自行导入，请遵守对应原作者的授权，勿违规再分发。
 
-## 七、仓库版（纯净模式）说明
+## 八、仓库版（纯净模式）说明
 
 本副本为**上传仓库专用**的纯净版本，与本地自用版的区别：
 
@@ -162,7 +181,7 @@ git check-ignore -v data/diaries/2026-01-01.json dist/千肥万鱼/千肥万鱼.
 
 应看到运行数据、dist 被忽略；`settings.json` 保持空白即可提交。
 
-## 八、上传到 GitHub
+## 九、上传到 GitHub
 
 仓库源码本身即是纯净副本，可直接作为项目根目录使用。用 Git Bash 在这个目录里执行：
 

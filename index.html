@@ -1303,6 +1303,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
             <div class="field"><label>批量大小</label><input type="number" id="svBatch" min="1" max="20" step="1" value="1"></div>
             <div class="field"><label>超时（秒）</label><input type="number" id="svTimeout" min="10" max="300" step="5" value="120"><span class="unit">首次加载模型可能要几十秒</span></div>
             <div class="mrow"><button class="mbtn primary" id="btnProbeSovits">测试连接</button><span class="unit" id="svState">会真发一句短句验证服务、参考音频和参数</span></div>
+            <div class="field"><label>自动启动</label><input type="checkbox" id="svAutoStart" style="accent-color:var(--accent)"><span class="unit">默认关闭。勾选后启动观察台时会自动拉起本机 SoVITS；启动脚本属于可执行文件，所以默认交给你点一下</span></div>
+            <div class="mrow"><button class="mbtn" id="btnStartSovits">启动本地 SoVITS</button><span class="unit" id="svDetected">—</span></div>
             <p class="desc" style="margin:10px 0 0">参考音频建议 3–10 秒、干净无伴奏。路径是 <b>GPT-SoVITS 那台机器上的绝对路径</b>，由它自己去读；观察台不读也不复制这个文件。</p>
           </div>
         </section>
@@ -1519,6 +1521,69 @@ body.game-mode #gameFlag{display:inline-flex!important}
   <div id="foot">.dsh 默认只读（人格同步除外） · 日记与记忆整理只存在 fish-watch · 第三方模型仅在你点击时调用</div>
 </div>
 
+<script>
+/* 访问令牌引导：地址里带 #fw_token=xxx 时收进 sessionStorage 并抹掉，
+   之后所有 /api/ 请求自动带 X-FW-Token。桌面版由主进程注入，用户无感；
+   浏览器方式打开时若没带令牌，会弹一次输入框。 */
+(function(){
+  var K='fw_token';
+  function saved(){try{return sessionStorage.getItem(K)||''}catch(e){return ''}}
+  try{
+    var fromHash='',fromQuery='';
+    var m=(location.hash||'').match(/fw_token=([^&]+)/);
+    if(m)fromHash=decodeURIComponent(m[1]);
+    if(!fromHash&&window.URLSearchParams)fromQuery=new URLSearchParams(location.search).get('token')||'';
+    var got=fromHash||fromQuery;
+    if(got){
+      try{sessionStorage.setItem(K,got)}catch(e){}
+      if(history.replaceState)history.replaceState(null,'',location.pathname+location.search);
+    }
+  }catch(e){}
+  window.__fwToken=function(){return saved()};
+  function gate(){
+    if(document.getElementById('fwTokenGate'))return;
+    var wrap=document.createElement('div');
+    wrap.id='fwTokenGate';
+    wrap.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(6,18,28,.92);display:flex;align-items:center;justify-content:center;font:14px/1.7 system-ui,"Microsoft YaHei",sans-serif;color:#e8f2f8';
+    wrap.innerHTML='<div style="max-width:520px;padding:26px 30px;background:#0f2434;border:1px solid #2b4a60;border-radius:14px">'
+      +'<h3 style="margin:0 0 10px;font-size:17px">需要访问令牌</h3>'
+      +'<p style="margin:0 0 12px;color:#9fb8c8">本地服务现在要求令牌。桌面版会自动带上；用浏览器打开时，请从启动窗口复制带 <code>#fw_token=</code> 的地址，或把令牌粘到下面。</p>'
+      +'<input id="fwTokenInput" placeholder="粘贴令牌" autocomplete="off" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid #2b4a60;background:#0a1a26;color:#e8f2f8;box-sizing:border-box">'
+      +'<div style="margin-top:12px;display:flex;gap:10px"><button id="fwTokenSave" style="padding:8px 16px;border-radius:8px;border:0;background:#39a0c8;color:#04121b;font-weight:600;cursor:pointer">保存并刷新</button>'
+      +'<button id="fwTokenClose" style="padding:8px 16px;border-radius:8px;border:1px solid #2b4a60;background:transparent;color:#9fb8c8;cursor:pointer">先关掉</button></div>'
+      +'</div>';
+    document.body.appendChild(wrap);
+    document.getElementById('fwTokenSave').onclick=function(){
+      var v=(document.getElementById('fwTokenInput').value||'').trim();
+      if(!v)return;
+      try{sessionStorage.setItem(K,v)}catch(e){}
+      location.reload();
+    };
+    document.getElementById('fwTokenClose').onclick=function(){wrap.remove()};
+    var box=document.getElementById('fwTokenInput');
+    if(box)box.focus();
+  }
+  window.__fwShowTokenGate=gate;
+  var raw=window.fetch?window.fetch.bind(window):null;
+  if(raw){
+    window.fetch=function(input,init){
+      var url=typeof input==='string'?input:(input&&input.url)||'';
+      if(url.indexOf('/api/')>=0){
+        init=init||{};
+        var h=null;
+        try{h=new Headers(init.headers||{})}catch(e){h=null}
+        var t=window.__fwToken();
+        if(h&&t)h.set('X-FW-Token',t);
+        if(h)init.headers=h;
+      }
+      return raw(input,init).then(function(r){
+        if(r&&r.status===401)gate();
+        return r;
+      });
+    };
+  }
+})();
+</script>
 <script>
 (function(){
   'use strict';
@@ -3042,9 +3107,11 @@ body.game-mode #gameFlag{display:inline-flex!important}
         if(!DSH_PERSONA)return;
         var ta=$('dshPersonaText'),st=$('dshPersonaStatus');
         if(!ta)return;
+        /* 这是唯一一处会改写 DSH 自己文件的动作，二次确认后再发；后端也要求 confirm:true */
+        if(!window.confirm('确定把编辑器里的内容写回 DSH 人格文件吗？\n\n原文件会先备份到 data/persona-backups/，出问题可以恢复。'))return;
         if(st)st.textContent='正在写入 DSH…';
         fetchJson('/api/persona/dsh',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({id:DSH_PERSONA.id,text:ta.value,expectUpdatedAt:DSH_PERSONA.updatedAt})})
+          body:JSON.stringify({id:DSH_PERSONA.id,text:ta.value,expectUpdatedAt:DSH_PERSONA.updatedAt,confirm:true})})
           .then(function(d){
             DSH_PERSONA=d;playSfx('confirm');
             toast(d.unchanged?'内容没有变化':('已同步到 DSH · 备份在 '+d.backup));
@@ -3654,11 +3721,12 @@ body.game-mode #gameFlag{display:inline-flex!important}
       var box=$('svState');if(!box)return;
       var label={ready:'✅ 本地语音已自动连接',
                  starting:'⏳ '+(d.detail||'本地语音正在启动…'),
-                 off:'⚠ 本地语音未启动',
+                 off:'⚠ '+(d.detail||'本地语音未启动'),
                  missing:'⚠ '+(d.detail||'未找到 SoVITS 启动脚本'),
                  timeout:'⚠ '+(d.detail||'等待就绪超时'),
                  error:'⚠ '+(d.detail||'启动失败')};
       box.textContent=(label[d.status]||('本地语音状态：'+d.status))+(d.baseUrl?(' · '+d.baseUrl):'');
+      if($('svDetected'))$('svDetected').textContent=d.detected?('启动路径：'+d.detected):(d.status==='missing'?'未找到启动脚本':'—');
       if((d.status==='starting')&&SOVITS_TRIES<75){
         SOVITS_TRIES++;
         setTimeout(autoCheckVoice,2000);   /* 每 2 秒复查，最多再等约 150 秒 */
@@ -3681,7 +3749,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
       batchSize:numOr('svBatch',1),
       mediaType:$('svMedia').value,
       streaming:false,
-      timeoutSec:numOr('svTimeout',120)
+      timeoutSec:numOr('svTimeout',120),
+      autoStart:!!($('svAutoStart')&&$('svAutoStart').checked)
     };
   }
   function fillSettings(){
@@ -3728,6 +3797,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     $('svTemp').value=gs.temperature==null?1:gs.temperature;
     $('svBatch').value=gs.batchSize==null?1:gs.batchSize;
     $('svTimeout').value=gs.timeoutSec==null?120:gs.timeoutSec;
+    if($('svAutoStart'))$('svAutoStart').checked=!!gs.autoStart;
     applyVoiceEngineUI();
     var ch=SETTINGS.chat||{};
     if($('chatDshBase'))$('chatDshBase').value=ch.dshBaseUrl||'';
@@ -5454,6 +5524,19 @@ body.game-mode #gameFlag{display:inline-flex!important}
         btn.disabled=false;
       })
       .catch(function(e){$('svState').textContent='连接失败：'+e.message;btn.disabled=false});
+  };
+  if($('btnStartSovits'))$('btnStartSovits').onclick=function(){
+    var btn=this;btn.disabled=true;
+    $('svState').textContent='正在启动本地 SoVITS…';
+    fetch('/api/tts/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json().then(function(d){if(!d.ok)throw new Error(d.error||('HTTP '+r.status));return d})})
+      .then(function(d){
+        $('svState').textContent=(d.detail||('本地语音状态：'+d.status))+(d.baseUrl?(' · '+d.baseUrl):'');
+        if($('svDetected'))$('svDetected').textContent=d.detected?('启动路径：'+d.detected):'未找到启动脚本';
+        if(d.status==='starting'){SOVITS_TRIES=0;autoCheckVoice()}
+        btn.disabled=false;
+      })
+      .catch(function(e){$('svState').textContent='启动失败：'+e.message;btn.disabled=false});
   };
   [['ttsRate','rateVal'],['ttsPitch','pitchVal']].forEach(function(pair){
     $(pair[0]).oninput=function(){$(pair[1]).textContent=Number(this.value).toFixed(1)};

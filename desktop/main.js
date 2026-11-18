@@ -14,6 +14,7 @@
 const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const http = require('http');
 
 const APP_DIR = path.resolve(__dirname, '..');
@@ -22,9 +23,13 @@ const ICON_PATH = path.join(APP_DIR, 'assets', 'ui', 'app.ico');
 const PRELOAD_PATH = path.join(__dirname, 'preload.js');
 const WIN_STATE_PATH = path.join(APP_DIR, 'window-state.json');
 const DEFAULT_PORT = Number(process.env.FISH_WATCH_PORT || 18765);
+/* 与 server.js 保持一致：令牌存用户主目录，页面地址用 #fw_token= 带上（fragment 不会发给服务端） */
+const TOKEN_FILE = path.join(os.homedir(), '.fish-watch', 'api-token');
 
 let win = null;
 let baseUrl = '';
+let startUrl = '';
+let serverMod = null;
 let quitting = false;
 let serverStarted = false;
 let serverError = '';
@@ -72,7 +77,7 @@ function startServer(port) {
   process.env.FISH_WATCH_NO_OPEN = '1';
   process.env.FISH_WATCH_PORT = String(port);
   try {
-    require(path.join(APP_DIR, 'server.js'));
+    serverMod = require(path.join(APP_DIR, 'server.js')) || null;
     serverStarted = true;
     return true;
   } catch (e) {
@@ -126,6 +131,13 @@ async function boot() {
   }
 
   baseUrl = 'http://127.0.0.1:' + port + '/';
+  /* 令牌：优先用本进程启动服务时拿到的；复用已在运行的实例时读令牌文件 */
+  let token = (serverMod && serverMod.token) || '';
+  if (!token) {
+    try { token = fs.readFileSync(TOKEN_FILE, 'utf8').trim(); } catch (e) { token = ''; }
+  }
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) token = '';
+  startUrl = token ? baseUrl + '#fw_token=' + encodeURIComponent(token) : baseUrl;
   createWindow();
 }
 
@@ -187,7 +199,7 @@ function createWindow() {
     if (saved.fullscreen) { try { win.setFullScreen(true); } catch (e) { /* 忽略 */ } }
     pushWinState();
   });
-  win.loadURL(baseUrl);
+  win.loadURL(startUrl || baseUrl);
 
   /* 用户手动拖拽缩放 / F11 全屏后，同步状态给页面并落盘 */
   win.on('resize', () => { clearTimeout(win._fwResizeTimer); win._fwResizeTimer = setTimeout(pushWinState, 200); });
@@ -209,7 +221,8 @@ function createWindow() {
   /* 渲染进程异常时自动重载一次，避免白屏 */
   win.webContents.on('render-process-gone', () => {
     if (quitting) return;
-    setTimeout(() => { if (win && !win.isDestroyed()) win.reload(); }, 800);
+    /* 用带令牌的地址重载：崩溃后 sessionStorage 可能已丢，裸地址会弹令牌框 */
+    setTimeout(() => { if (win && !win.isDestroyed()) win.loadURL(startUrl || baseUrl); }, 800);
   });
 
   win.on('closed', () => { win = null; });

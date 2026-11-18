@@ -21,6 +21,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const { execFileSync, exec, spawn } = require('child_process');
 const net = require('net');
 
@@ -28,6 +29,56 @@ const net = require('net');
 const ROOT = path.resolve(process.env.DSH_ROOT || path.join(os.homedir(), '.dsh')).replace(/\\/g, '/');
 const PORT = Number(process.env.FISH_WATCH_PORT || 18765);
 const HOST = '127.0.0.1';
+
+/* ---------- 访问令牌 ----------
+ * 服务只监听 127.0.0.1，但同一台机器上的其他账户、其他进程同样能连上这个端口。
+ * 所以除「探活」与「DSH 插件读活动状态」外，所有 /api/ 都要求令牌：
+ *   - 桌面版由主进程注入到页面地址的 #fw_token= 里，用户无感；
+ *   - 源码/浏览器方式启动时，控制台会打印带令牌的地址，首次用它打开即可；
+ *   - DSH 插件走 /api/dsh/agent-state，不受影响。
+ * 令牌首次运行随机生成，存在用户主目录（不放程序目录：便携版换台机器不会带着别人的令牌走）。
+ * 说明：这挡得住同机其他账户、端口转发暴露和盲目扫描；挡不住「同一账户下已在你机器上跑起来
+ * 的恶意程序」——那种程序能直接读令牌文件，只能靠系统层面的防护。 */
+const TOKEN_FILE = path.join(os.homedir(), '.fish-watch', 'api-token');
+function loadApiToken() {
+  const fromEnv = String(process.env.FISH_WATCH_TOKEN || '').trim();
+  if (/^[A-Za-z0-9_-]{20,}$/.test(fromEnv)) return fromEnv;
+  try {
+    const old = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+    if (/^[A-Za-z0-9_-]{20,}$/.test(old)) return old;
+  } catch (e) { /* 首次运行 */ }
+  const fresh = crypto.randomBytes(24).toString('base64url');
+  try {
+    fs.mkdirSync(path.dirname(TOKEN_FILE), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(TOKEN_FILE, fresh + '\n', { encoding: 'utf8', mode: 0o600 });
+  } catch (e) { /* 主目录不可写：仅本次进程有效，桌面版从模块导出读取 */ }
+  return fresh;
+}
+const API_TOKEN = loadApiToken();
+
+function tokenMatches(got) {
+  if (!got) return false;
+  const a = Buffer.from(String(got), 'utf8');
+  const b = Buffer.from(API_TOKEN, 'utf8');
+  if (a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(a, b); } catch (e) { return false; }
+}
+function requestToken(req, url) {
+  const h = req.headers || {};
+  const fromHeader = String(h['x-fw-token'] || '').trim();
+  if (fromHeader) return fromHeader;
+  const auth = String(h.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (auth) return auth;
+  try { return String(url.searchParams.get('token') || '').trim(); } catch (e) { return ''; }
+}
+/* 免令牌：探活（桌面端判断端口上是不是自己）与 DSH 插件的活动状态。
+ * 插件跑在 DSH 进程里、只推表情状态（GET 读 / POST 推），拿不到页面里的令牌，
+ * 所以这两个接口保持开放：它们不读写任何会话内容，最坏后果是表情被乱切。 */
+function tokenExempt(method, p) {
+  if (p === '/api/dsh/agent-state') return true;
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  return p === '/api/health';
+}
 
 /* 本地接口防护：只接受本机页面 / 本机脚本的请求，挡住跨站伪造（CSRF）。
  * - 浏览器跨站 POST 一定带外来 Origin / Sec-Fetch-Site: cross-site，据此拒绝；
@@ -90,8 +141,17 @@ function ensureLocalDirs() {
   fs.mkdirSync(localPath('data/diaries'), { recursive: true });
   fs.mkdirSync(localPath('data/persona-backups'), { recursive: true });
 }
-function isDirWritable(dir) {
-  try { fs.accessSync(dir, fs.constants.W_OK); return true; } catch (e) { return false; }
+/* 敏感写操作的轻量审计：只记「谁在什么时候改了哪个文件」，不记内容本身 */
+const SECURITY_LOG = localPath('data/security.log');
+function securityLog(action, detail) {
+  try {
+    const line = JSON.stringify(Object.assign({ at: new Date().toISOString(), action }, detail || {}));
+    fs.appendFileSync(SECURITY_LOG, line + '\n', 'utf8');
+    if (fs.statSync(SECURITY_LOG).size > 512 * 1024) {
+      const keep = fs.readFileSync(SECURITY_LOG, 'utf8').split('\n').filter(Boolean).slice(-500).join('\n');
+      fs.writeFileSync(SECURITY_LOG, keep + '\n', 'utf8');
+    }
+  } catch (e) { /* 记日志失败不影响主流程 */ }
 }
 
 /* ---------- 设置 ---------- */
@@ -120,6 +180,7 @@ const DEFAULT_SETTINGS = {
     mediaType: 'wav',
     streaming: false,
     timeoutSec: 120,
+    autoStart: false,     /* 默认不自动拉起：本机脚本属于可执行文件，交给用户点了才启动 */
   },
   chat: {
     dshBaseUrl: 'http://127.0.0.1:3080/m/api',
@@ -178,6 +239,7 @@ function normalizeSovits(raw, base) {
     mediaType: oneOf(r.mediaType, SOVITS_MEDIA, b.mediaType),
     streaming: bool(r.streaming, b.streaming),
     timeoutSec: num(r.timeoutSec, 10, 300, b.timeoutSec),
+    autoStart: bool(r.autoStart, b.autoStart),
   };
 }
 
@@ -1113,9 +1175,39 @@ function buildAssetPack(scope) {
   const entries = [{ name: 'manifest.json', data: Buffer.from(JSON.stringify(manifest, null, 2), 'utf8') }].concat(files);
   return { buf: zipStore(entries), count: files.length, manifest };
 }
-/* 导入：校验 manifest 与逐文件 CRC，路径安全后写回，返回统计 */
+/* 导入：校验 manifest 与逐文件 CRC，路径安全后写回，返回统计。
+ * 资源上限：素材包是 store 模式（不压缩），所以「解压后体积 = 上传体积」，不存在 ZIP 炸弹；
+ * 这里再按文件数 / 单文件 / 累计上传量兜一层，防止被反复当写盘放大器用。 */
+const PACK_MAX_FILES = 3000;
+const PACK_MAX_FILE_BYTES = 32 * 1024 * 1024;
+const PACK_WINDOW = { at: 0, bytes: 0, windowMs: 10 * 60 * 1000, maxBytes: 256 * 1024 * 1024 };
+
+function packBudget(bytes) {
+  const now = Date.now();
+  if (now - PACK_WINDOW.at > PACK_WINDOW.windowMs) { PACK_WINDOW.at = now; PACK_WINDOW.bytes = 0; }
+  if (PACK_WINDOW.bytes + bytes > PACK_WINDOW.maxBytes) {
+    throw httpError(429, '素材包导入过于频繁（10 分钟内累计超过 256 MB），请稍后再试');
+  }
+  PACK_WINDOW.bytes += bytes;
+}
+function ensureDiskSpace(needBytes) {
+  let free = -1;
+  try {
+    const st = fs.statfsSync(APP_DIR);
+    free = Number(st.bavail) * Number(st.bsize);
+  } catch (e) { return; }   /* 拿不到就不拦，别把正常导入卡死 */
+  const reserve = 200 * 1024 * 1024;
+  if (free >= 0 && free < needBytes + reserve) {
+    throw httpError(507, '磁盘剩余空间不足：还需要约 ' + Math.ceil((needBytes + reserve) / 1048576) + ' MB，请先清理再导入。');
+  }
+}
 function importAssetPack(buf) {
+  packBudget(buf.length);
   const entries = unzipStore(buf);
+  if (entries.length > PACK_MAX_FILES) throw httpError(413, '素材包文件数超过上限（' + PACK_MAX_FILES + ' 个）');
+  for (const e of entries) {
+    if (e.data.length > PACK_MAX_FILE_BYTES) throw httpError(413, '素材包里单个文件超过 32 MB：' + e.name.slice(0, 80));
+  }
   const man = entries.find((e) => e.name === 'manifest.json');
   if (!man) throw httpError(400, '素材包缺少 manifest.json，不是千肥万鱼素材包');
   let mf;
@@ -1142,6 +1234,8 @@ function importAssetPack(buf) {
     writes.push({ name: e.name, data: e.data });
   }
   /* 导入前备份现有配置文件，便于回滚 */
+  const totalBytes = writes.reduce((n, w) => n + w.data.length, 0);
+  ensureDiskSpace(totalBytes * 2);   /* 备份一份 + 写入一份 */
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
   const backupDir = localPath('data/assetpack-backups/' + stamp);
   fs.mkdirSync(backupDir, { recursive: true });
@@ -1662,23 +1756,62 @@ function uploadAsset(body) {
 
 function httpError(status, message) { const e = new Error(message); e.status = status; return e; }
 function redact(s) { return String(s || '').replace(/sk-[A-Za-z0-9_\-]{6,}/g, 'sk-***').slice(0, 400); }
-function joinUrl(base, tailPath) {
-  let u = String(base || '').trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(u)) throw httpError(400, '接口地址必须是 http:// 或 https:// 开头');
-  return u + '/' + tailPath;
+/* 日志里只留 origin + path，去掉可能夹带凭据的 userinfo 与查询串 */
+function redactUrl(u) {
+  try { const x = new URL(String(u || '')); return x.origin + x.pathname; }
+  catch (e) { return String(u || '').slice(0, 120); }
 }
+function joinUrl(base, tailPath) {
+  const raw = String(base || '').trim();
+  if (!/^https?:\/\//i.test(raw)) throw httpError(400, '接口地址必须是 http:// 或 https:// 开头');
+  let u;
+  try { u = new URL(raw); } catch (e) { throw httpError(400, '接口地址不是合法 URL'); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw httpError(400, '接口地址只支持 http / https');
+  if (u.username || u.password) throw httpError(400, '接口地址里不要带用户名密码');
+  return raw.replace(/\/+$/, '') + '/' + tailPath;
+}
+const PROXY_MAX_REDIRECTS = 3;
+/* 外部请求统一走这里。redirect 固定 manual：不让运行时带着 Authorization 头
+ * 自动跟到别的站点——那等于把 API Key 送给重定向目标。跨域重定向默认拒绝，
+ * 只有「本来就无凭据的下载」（例如模型返回的图片 URL）才允许跨域跟随。 */
 async function proxyFetch(url, opts, timeoutMs) {
-  const r = await fetch(url, {
-    method: opts.method || 'GET',
-    headers: opts.headers || {},
-    body: opts.body,
-    signal: AbortSignal.timeout(timeoutMs || 60000),
-    redirect: 'follow',
-  });
-  const buf = Buffer.from(await r.arrayBuffer());
-  let json = null;
-  try { json = JSON.parse(buf.toString('utf8')); } catch (e) { /* 二进制 */ }
-  return { ok: r.ok, status: r.status, buffer: buf, json, text: buf.toString('utf8'), contentType: r.headers.get('content-type') || '' };
+  let target = String(url);
+  let method = opts.method || 'GET';
+  let body = opts.body;
+  const headers = Object.assign({}, opts.headers || {});
+  for (let hop = 0; ; hop++) {
+    const r = await fetch(target, {
+      method: method,
+      headers: headers,
+      body: body,
+      signal: AbortSignal.timeout(timeoutMs || 60000),
+      redirect: 'manual',
+    });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get('location');
+      if (!loc) throw httpError(502, '接口返回了重定向，但没给 Location');
+      if (hop >= PROXY_MAX_REDIRECTS) throw httpError(502, '接口重定向次数过多');
+      const from = new URL(target);
+      let next;
+      try { next = new URL(loc, target); } catch (e) { throw httpError(502, '接口给了一个无法解析的重定向地址'); }
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') throw httpError(502, '接口重定向到了不支持的协议');
+      if (next.origin !== from.origin) {
+        if (!opts.allowCrossRedirect) {
+          throw httpError(502, '接口把请求重定向到了别的站点（' + next.origin + '），已拒绝，避免 API Key 被转发出去。请把「接口地址」直接填成最终地址。');
+        }
+        /* 无凭据的下载：可以跟，但把可能存在的 Authorization 去掉，绝不带到新站点 */
+        delete headers.Authorization;
+        delete headers.authorization;
+      }
+      if (r.status === 301 || r.status === 302 || r.status === 303) { method = 'GET'; body = undefined; }
+      target = next.href;
+      continue;
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    let json = null;
+    try { json = JSON.parse(buf.toString('utf8')); } catch (e) { /* 二进制 */ }
+    return { ok: r.ok, status: r.status, buffer: buf, json, text: buf.toString('utf8'), contentType: r.headers.get('content-type') || '' };
+  }
 }
 
 async function generateImage(body) {
@@ -1715,7 +1848,7 @@ async function generateImage(body) {
     const imgUrl = first.url || outFirst.url || (typeof d.url === 'string' ? d.url : null);
     if (imgUrl) {
       if (!/^https?:\/\//i.test(imgUrl)) throw httpError(502, '模型返回的图片地址不是 http(s)');
-      try { buf = (await proxyFetch(imgUrl, {}, 60000)).buffer; }
+      try { buf = (await proxyFetch(imgUrl, { allowCrossRedirect: true }, 60000)).buffer; }
       catch (e) { throw httpError(502, '下载生成图片失败：' + redact(e.message)); }
     }
   }
@@ -2163,12 +2296,12 @@ async function chatStatePayload() {
   return out;
 }
 
-/* ---------- 本地 GPT-SoVITS 自动拉起与状态 ----------
- * 无论用 start.cmd 还是直接 node server.js 启动，都尽量把 9880 的 SoVITS 拉起来，
- * 避免"打开观察台本地语音没连上"。只在本机、仅当引擎=sovits 且端口空闲时动手。
- * 拉起是一次性尽力而为：不阻塞服务启动，失败只记录状态，前端会显示提示。
+/* ---------- 本地 GPT-SoVITS 拉起与状态 ----------
+ * 默认「不自动启动」：启动脚本属于本机可执行文件，是否执行交给用户点一下。
+ * 只有设置里打开「自动启动本地 SoVITS」，或用户主动点「启动」时才拉起。
+ * 目录只认三类显式位置（环境变量 / 程序目录 / 用户目录），不再全盘扫描盘符。
  */
-const SOVITS_STATE = { status: 'idle', detail: '', startedAt: 0, pid: 0 };
+const SOVITS_STATE = { status: 'idle', detail: '', startedAt: 0, pid: 0, detected: '', dir: '' };
 function portOpen(host, port, timeoutMs) {
   return new Promise((resolve) => {
     const sock = new net.Socket();
@@ -2193,7 +2326,23 @@ function parseHostPort(url) {
     return { host, port: Number(u.port || (u.protocol === 'https:' ? 443 : 80)) };
   } catch (e) { return { host: '127.0.0.1', port: 9880 }; }
 }
-async function ensureSoVits() {
+function sovitsCandidates() {
+  return [
+    process.env.FISH_SOVITS_DIR,
+    path.join(APP_DIR, 'GPT-SoVITS'),
+    path.join(os.homedir(), 'GPT-SoVITS'),
+  ].filter(Boolean);
+}
+function findSoVits() {
+  for (const d of sovitsCandidates()) {
+    const cmd = path.join(d, 'start-sovits.cmd');
+    const py = path.join(d, 'api_v2.py');
+    try { if (fs.statSync(cmd).isFile()) return { dir: d, launcher: cmd, pyScript: '', path: cmd }; } catch (e) { /* 换下一个 */ }
+    try { if (fs.statSync(py).isFile()) return { dir: d, launcher: '', pyScript: py, path: py }; } catch (e) { /* 换下一个 */ }
+  }
+  return null;
+}
+async function ensureSoVits(force) {
   const engine = (SETTINGS && SETTINGS.tts && SETTINGS.tts.engine) || 'browser';
   const url = sovitsEndpoint();
   const { host, port } = parseHostPort(url);
@@ -2202,35 +2351,35 @@ async function ensureSoVits() {
   if (reachable) {
     SOVITS_STATE.status = 'ready';
     SOVITS_STATE.detail = '端口 ' + port + ' 已在监听';
-    return;
+    return SOVITS_STATE;
   }
-  if (engine !== 'sovits' || !local) {
+  const found = findSoVits();
+  SOVITS_STATE.detected = found ? found.path : '';
+  SOVITS_STATE.dir = found ? found.dir : '';
+  const auto = !!(SETTINGS && SETTINGS.sovits && SETTINGS.sovits.autoStart === true);
+  if (!force && !auto) {
     SOVITS_STATE.status = 'off';
-    SOVITS_STATE.detail = engine === 'sovits' ? '本机端口无服务' : '当前引擎不是本地 GPT-SoVITS';
-    return;
+    SOVITS_STATE.detail = found
+      ? '未自动启动（默认关闭）。已找到 ' + found.path + '，可在设置里点「启动本地 SoVITS」'
+      : '未自动启动（默认关闭）。没找到 GPT-SoVITS：可设环境变量 FISH_SOVITS_DIR 指向安装目录';
+    return SOVITS_STATE;
   }
-  /* 端口空闲 + 引擎=sovits + 本机：尝试拉起。
-     目录探测顺序：FISH_SOVITS_DIR → 程序目录/GPT-SoVITS → 常见安装位置，换机器不用改代码 */
-  const driveRoots = process.platform === 'win32'
-    ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(function (c) { return c + ':/GPT-SoVITS'; })
-    : [];
-  const candidates = [
-    process.env.FISH_SOVITS_DIR,
-    path.join(APP_DIR, 'GPT-SoVITS'),
-    path.join(os.homedir(), 'GPT-SoVITS'),
-  ].concat(driveRoots).filter(Boolean);
-  let dir = '', launcher = '', pyScript = '';
-  for (const d of candidates) {
-    const cmd = path.join(d, 'start-sovits.cmd');
-    const py = path.join(d, 'api_v2.py');
-    if (fs.existsSync(cmd)) { dir = d; launcher = cmd; break; }
-    if (!pyScript && fs.existsSync(py)) { dir = d; pyScript = py; }
+  if (!local) {
+    SOVITS_STATE.status = 'off';
+    SOVITS_STATE.detail = '服务地址不是本机，无法自动启动';
+    return SOVITS_STATE;
   }
-  if (!launcher && !pyScript) {
+  if (!force && engine !== 'sovits') {
+    SOVITS_STATE.status = 'off';
+    SOVITS_STATE.detail = '当前引擎不是本地 GPT-SoVITS';
+    return SOVITS_STATE;
+  }
+  if (!found) {
     SOVITS_STATE.status = 'missing';
     SOVITS_STATE.detail = '没找到 GPT-SoVITS（可设环境变量 FISH_SOVITS_DIR 指向安装目录）';
-    return;
+    return SOVITS_STATE;
   }
+  const dir = found.dir, launcher = found.launcher, pyScript = found.pyScript;
   SOVITS_STATE.status = 'starting';
   SOVITS_STATE.detail = '正在启动本地 GPT-SoVITS，首次加载模型约需 30–90 秒…';
   SOVITS_STATE.startedAt = Date.now();
@@ -2273,7 +2422,11 @@ async function ensureSoVits() {
 }
 function sovitsStatus() {
   const url = sovitsEndpoint();
-  return Object.assign({ ok: true, baseUrl: url, engine: (SETTINGS && SETTINGS.tts && SETTINGS.tts.engine) || 'browser' }, SOVITS_STATE);
+  return Object.assign({
+    ok: true, baseUrl: url,
+    engine: (SETTINGS && SETTINGS.tts && SETTINGS.tts.engine) || 'browser',
+    autoStart: !!(SETTINGS && SETTINGS.sovits && SETTINGS.sovits.autoStart),
+  }, SOVITS_STATE);
 }
 
 /* ---------- HTTP 工具 ---------- */
@@ -2334,8 +2487,15 @@ async function handlePost(p, req, res) {
   const body = await readBody(req);
   if (p === '/api/settings') {
     const beforeChat = (SETTINGS.chat && SETTINGS.chat.dshSessionId) || '';
+    const beforeImg = (SETTINGS.image && SETTINGS.image.baseUrl) || '';
+    const beforeTts = (SETTINGS.serverTts && SETTINGS.serverTts.baseUrl) || '';
     SETTINGS = saveSettings(mergeSettings(body, SETTINGS));
     cache = { at: 0, value: null };
+    /* 接口地址被改 = 密钥可能被发往别处，留一条记录便于事后追溯 */
+    const afterImg = (SETTINGS.image && SETTINGS.image.baseUrl) || '';
+    const afterTts = (SETTINGS.serverTts && SETTINGS.serverTts.baseUrl) || '';
+    if (afterImg !== beforeImg) securityLog('settings.imageEndpoint', { from: redactUrl(beforeImg), to: redactUrl(afterImg) });
+    if (afterTts !== beforeTts) securityLog('settings.ttsEndpoint', { from: redactUrl(beforeTts), to: redactUrl(afterTts) });
     /* 设置页也能改目标会话：改了就和切换一样，作废正在等待的旧请求 */
     if (String((SETTINGS.chat && SETTINGS.chat.dshSessionId) || '') !== String(beforeChat)) resetChatPending();
     return sendJson(res, 200, { ok: true, settings: publicSettings(SETTINGS) });
@@ -2402,7 +2562,11 @@ async function handlePost(p, req, res) {
     return sendJson(res, 200, publicPersona(updatePersona(body)));
   }
   if (p === '/api/persona/dsh') {
-    return sendJson(res, 200, writeDshPersona(body));
+    /* 会改写 DSH 的人格文件，属于越过程序自身目录的写操作：必须显式确认 */
+    if (body.confirm !== true) throw httpError(400, '改写 DSH 人格需要显式确认（confirm: true）');
+    const out = writeDshPersona(body);
+    if (!out.unchanged) securityLog('persona.write', { id: out.id, file: out.file, chars: out.chars, backup: out.backup });
+    return sendJson(res, 200, out);
   }
   if (p === '/api/diary') {
     return sendJson(res, 200, saveDiaryEntry(body));
@@ -2450,6 +2614,12 @@ async function handlePost(p, req, res) {
   if (p === '/api/tts/probe') {
     return sendJson(res, 200, await probeSoVits(body));
   }
+  if (p === '/api/tts/start') {
+    /* 用户主动点「启动」：无视 autoStart 开关，但只认显式配置的目录，且把实际路径回给界面 */
+    const st = await ensureSoVits(true);
+    securityLog('sovits.start', { path: (st && st.detected) || '', pid: (st && st.pid) || 0 });
+    return sendJson(res, 200, sovitsStatus());
+  }
   if (p === '/api/tts') {
     const out = await synthSpeech(body);
     res.writeHead(200, { 'Content-Type': out.type, 'Content-Length': out.buffer.length, 'Cache-Control': 'no-store' });
@@ -2467,6 +2637,16 @@ const server = http.createServer((req, res) => {
 
   /* 跨站来源一律拒绝（见 localRequestGuard） */
   if (!localRequestGuard(req, res)) return;
+
+  /* 第二层：本机也要令牌。挡的是同机其他账户、端口转发和盲目扫描，见 API_TOKEN 说明 */
+  if (p.indexOf('/api/') === 0 && !tokenExempt(method, p) && !tokenMatches(requestToken(req, url))) {
+    try { req.resume(); } catch (e) { /* 丢掉可能还在发的请求体 */ }
+    sendJson(res, 401, {
+      ok: false, needToken: true,
+      error: '缺少或错误的访问令牌。桌面版会自动带上；源码方式启动请用控制台打印的带 token 地址打开页面。',
+    });
+    return;
+  }
 
   if (method === 'POST' && p === '/api/pack/import') {
     const ct = String((req.headers || {})['content-type'] || '').toLowerCase();
@@ -2499,12 +2679,8 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (p === '/api/health') {
-    /* 桌面端/外部探活用：确认这是千肥万鱼而不是别的服务占着端口 */
-    sendJson(res, 200, {
-      ok: true, app: 'fish-watch', version: APP_VERSION, port: PORT,
-      dshRoot: ROOT, dshRootExists: fs.existsSync(ROOT),
-      dataWritable: isDirWritable(APP_DIR),
-    });
+    /* 桌面端探活用：只回答「端口上是不是千肥万鱼」，不泄漏任何本机路径 */
+    sendJson(res, 200, { ok: true, app: 'fish-watch', version: APP_VERSION, port: PORT });
     return;
   }
   if (p === '/api/dsh/agent-state') {
@@ -2619,17 +2795,24 @@ server.on('error', (e) => {
 });
 
 ensureLocalDirs();
+const OPEN_URL = 'http://' + HOST + ':' + PORT + '/#fw_token=' + encodeURIComponent(API_TOKEN);
 server.listen(PORT, HOST, () => {
-  /* 尽力自动拉起本地 GPT-SoVITS（仅当引擎=sovits 且端口空闲），不阻塞启动 */
-  setTimeout(ensureSoVits, 300);
+  /* 仅当用户显式开启「自动启动」时才尝试拉起本地 GPT-SoVITS，不阻塞启动 */
+  setTimeout(function () { ensureSoVits(false); }, 300);
   console.log('[fish-watch] 观察台已启动');
   console.log('  DSH 数据目录：' + ROOT + '  (只读；仅「保存到 DSH」时写回 surfcore 当前 persona.md)');
   console.log('  本地写入范围：' + APP_DIR + '\\settings.json、persona.json、assets.json、chat-log.json、assets\\uploads\\、data\\schedules\\、data\\diaries\\ 与 data\\persona-backups\\');
-  console.log('  访问地址：http://' + HOST + ':' + PORT + '/');
+  console.log('  访问地址（带访问令牌，请用这个打开）：');
+  console.log('    ' + OPEN_URL);
+  console.log('  令牌文件：' + TOKEN_FILE + '（仅当前用户可读；删掉后下次启动会重新生成）');
   console.log('  对话：固定走 DSH 会话，经 .dsh/mobile-remote 口令（只读）');
-  console.log('  语音：浏览器语音 / 服务端 TTS / 本地 GPT-SoVITS（默认 http://127.0.0.1:9880）');
+  console.log('  语音：浏览器语音 / 服务端 TTS / 本地 GPT-SoVITS（默认 http://127.0.0.1:9880，默认不自动启动）');
   console.log('  按 Ctrl+C 停止。');
   if (process.env.FISH_WATCH_NO_OPEN !== '1' && process.platform === 'win32') {
-    exec('start "" http://' + HOST + ':' + PORT + '/', () => {});
+    exec('start "" "' + OPEN_URL + '"', () => {});
   }
 });
+
+/* 桌面端（desktop/main.js）在进程内 require 本文件，直接从这里拿令牌注入页面地址，
+ * 免去读文件、也避免主目录不可写时拿不到令牌。 */
+module.exports = { token: API_TOKEN, port: PORT, host: HOST, url: OPEN_URL, tokenFile: TOKEN_FILE };

@@ -13,7 +13,7 @@ echo  写入范围：本文件夹内的 settings.json / assets.json / data / ass
 echo  可选环境变量：
 echo    FISH_WATCH_PORT   换端口，默认 18765
 echo    DSH_ROOT          DSH 数据目录，默认 %USERPROFILE%\.dsh
-echo    FISH_SOVITS_DIR   GPT-SoVITS 安装目录（留空自动探测）
+echo    FISH_SOVITS_DIR   GPT-SoVITS 安装目录（观察台默认不自动启动，需要时在设置里点「启动」）
 echo ============================================================
 echo.
 

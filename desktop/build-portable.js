@@ -52,7 +52,7 @@ const FACTORY_SETTINGS = {
   sovits: {
     baseUrl: 'http://127.0.0.1:9880', refAudioPath: '', promptText: '', promptLang: 'zh', textLang: 'zh',
     speed: 1, topK: 5, topP: 1, temperature: 1, splitMethod: 'cut5', batchSize: 1, mediaType: 'wav',
-    streaming: false, timeoutSec: 120,
+    streaming: false, timeoutSec: 120, autoStart: false,
   },
   chat: { dshBaseUrl: 'http://127.0.0.1:3080/m/api', dshSessionId: '', dshToken: '', replyTimeoutSec: 100 },
   schedule: { enabled: true, driveScene: true, driveSlot: true, drivePortrait: true, source: 'auto', autoGenerate: true },
