@@ -1,0 +1,7 @@
+- insert:
+    - id: qianfeiwanyu-bridge
+      name: dsh-qianfeiwanyu
+      config:
+        port: 18765
+        enabled: true
+        speak: true

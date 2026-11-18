@@ -1,0 +1,256 @@
+# 千肥万鱼 · 能力配置清单
+# 结构参考 DSH(Cordis) 的 cordis.patch.yml，字段与取值已按千肥万鱼实际情况改写。
+# 说明：这是"能力清单 / 预设"，运行时配置仍以 settings.json 为准；
+#       想让某一项真正生效，再把对应字段接进 server.js / index.html。
+
+- id: watch-default-model
+  name: '@fish-watch/default-model'
+  config:
+    provider: dsh                 # 改：原 nb-claude2-vision → 默认走本地 DSH 桥
+    model: dsh-agent              # 改：原 claude-sonnet-5-5 → DSH 会话里的「大肥鱼」
+    fallback:                     # 新增：DSH 不可用时的兜底
+      provider: api
+      model: deepseek-chat
+
+- id: watch-ui-profile
+  name: '@fish-watch/ui-profile'
+  config:
+    version: 1
+    stage: upper-body             # 改：立绘只露上半身、放大压在对话框
+    layout: taskbar-left          # 新增：左侧可收起任务栏
+    callWindow: draggable         # 新增：右侧可拖拽的通话小窗
+
+- id: watch-ui-chat
+  name: '@fish-watch/ui-chat'
+  config:
+    transcriptView: backlog       # 改：原 standard → BACKLOG 回顾面板
+    autoRead: true                # 新增：新台词自动转语音
+    replayButton: true            # 新增：每句可点喇叭重播
+    clickToDialog: true           # 新增：点回复送到下方主对话框
+    resizableDrawer: true         # 新增：输入抽屉顶部可拖动调高，记住高度（双击复位）
+    chatScenePrompt:              # 新增：对话里提到素材已有的场景 → 询问是否前往
+      enabled: true
+      cooldownSec: 45
+      source: [userInput, dshReply]
+      aliasFrom: sceneLibrary     # 只认 scenes.json 里确实存在的场景
+      effects: { favor: 2, trust: 1 }
+
+- id: watch-ui-settings
+  name: '@fish-watch/ui-settings'
+  config:
+    enabled: true
+    tabs:                         # 改：千肥万鱼的八个设置页（新增「玩法」）
+      - role
+      - art
+      - assets
+      - voice
+      - persona
+      - chat
+      - schedule
+      - play
+
+- id: watch-schedule
+  name: '@fish-watch/schedule'
+  config:
+    enabled: true
+    source: auto                  # auto / fishwatch / dsh / manual，auto = 自有日程优先、DSH 兼容兜底
+    autoGenerate: true            # 无当天日程时，千肥万鱼本地生成，不再强依赖 dsh-daily-schedule
+    driveScene: true
+    driveSlot: true
+    drivePortrait: true
+    storage: data/schedules       # 自有日程目录，YYYY-MM-DD.json
+    dshCompat:
+      enabled: true
+      path: ~/.dsh/daily-schedule/days
+      write: false                # DSH 日程全程只读，不写回插件目录
+    destChoice:                   # 新增：Galgame 式「下一步去哪里」选择
+      enabled: true
+      candidates: 3               # 每次给三个随机去处，玩家决定
+      storage: localStorage       # 当日选择只存在浏览器
+      effects:
+        favor: 2
+        trust: 1
+
+- id: watch-bond
+  name: '@fish-watch/bond'
+  config:
+    enabled: true
+    storage: localStorage         # 好感 / 信赖只存在本机浏览器，不写 DSH
+    favor:
+      onReply: 1                  # 她回应一句话 +1 好感
+      onDestChoice: 2             # 决定去处 +2
+    trust:
+      onSend: 2                   # 主动找她说话 +2 信赖
+      onInteract: 1               # 每点一次左侧互动 +1
+      dailyLogin: 2               # 每天首次打开 +2
+    levels:                       # 合计羁绊对应的关系称谓
+      - { min: 0, label: 初次见面 }
+      - { min: 15, label: 渐渐熟悉 }
+      - { min: 40, label: 互相信任 }
+      - { min: 80, label: 亲密无间 }
+      - { min: 150, label: 心意相通 }
+      - { min: 260, label: 特别的人 }
+
+- id: watch-persona-sync
+  name: '@fish-watch/persona-sync'
+  config:
+    enabled: true
+    source:                       # 读取 DSH 当前人格（surfcore 角色索引）
+      index: ~/.dsh/surfcore/characters/index.json
+      currentKey: currentId
+      personaKey: persona         # character.json 里的文件名，默认 persona.md
+    write:
+      enabled: true               # 仅在用户点「保存到 DSH」时写回
+      target: persona.md
+      backupDir: data/persona-backups
+      conflictCheck: mtime        # 保存前比对更新时间，避免覆盖别处的修改
+      maxChars: 200000
+
+- id: watch-memory
+  name: '@fish-watch/memory'
+  config:
+    enabled: true
+    source: fish-watch/chat-log.json
+    storage: localStorage         # fishwatch.memory.archive
+    extract:                      # 参考 dsh-soul：约束 / 决定 / 偏好 / 事实
+      types: [constraint, decision, preference, fact]
+      maxFactsPerSession: 60
+    maintenance:
+      dedupe: true
+      maxSessions: 60
+      maxArchives: 120
+    recall: keyword
+    export: json
+    dshMemoryWrite: false         # 只读展示 DSH 记忆统计，不写 DSH 记忆库
+
+- id: watch-diary
+  name: '@fish-watch/diary'
+  config:
+    enabled: true
+    time: '21:00'                 # 现实时间，24 小时制
+    storage: data/diaries/YYYY-MM-DD.json
+    maxDays: 180
+    catchUpOnOpen: true           # 过了写作时间才打开，补写当天那篇
+    sources: [chat, mood, bond, schedule, weather]
+    online: false                 # 纯本地拼装，不调用模型
+    view: leather-notebook        # 皮革封面 + 横线纸手账样式
+
+- id: watch-audio
+  name: '@fish-watch/audio'
+  config:
+    enabled: true
+    assetDir: assets/audio
+    manifest: assets/audio/index.json
+    bgm:                          # BGM 提取自本机《亚托莉 -我的挚爱时光-》APK 的 data.xp3
+      enabled: true
+      volume: 35
+      bySlot: [morning, day, dusk, night]
+      byMood: [warm, sad]
+    ambient:                      # 环境音为本地合成（海浪 / 雨 / 风）
+      enabled: true
+      volume: 25
+      byScene: true
+    sfx:                          # 界面音效为本地合成
+      enabled: true
+      volume: 50
+      events: [click, confirm, page, chime, collect]
+
+- id: watch-extras
+  name: '@fish-watch/extras'
+  config:
+    transitions:                  # 镜头与转场
+      enabled: true
+      style: fade                 # fade / flash / push / pan
+    gallery:                      # CG 画廊：去过的场景自动解锁
+      unlockedBy: sceneVisit
+    quotes:                       # 台词本：点对话框 ♡ 收藏
+      maxItems: 200
+    birthday:                     # 生日特别事件
+      enabled: true
+      format: MM-DD
+    liveLink:                     # 现实天气 / 时间 / 日程联动剧情
+      enabled: false
+      weatherProvider: open-meteo
+      refreshMin: 30
+      city: ''                    # 留空按 IP 粗定位
+
+- id: watch-llm-providers
+  name: '@fish-watch/llm-providers'
+  config:
+    providers:
+      dsh:                        # 改：原 nb-claude / nb-gpt / nb-claude2 → 千肥万鱼实际支持的三类
+        api: dsh-bridge
+        baseURL: http://127.0.0.1:3080/m/api
+        tokenEnv: DSH_MOBILE_TOKEN
+        models:
+          - id: dsh-agent
+            name: DSH · 大肥鱼（默认会话）
+      deepseek:
+        api: openai-completions
+        baseURL: https://api.deepseek.com/v1
+        apiKeyEnv: FISH_CHAT_API_KEY
+        models:
+          - id: deepseek-chat
+            name: DeepSeek Chat
+      openai-compatible:
+        api: openai-completions
+        baseURL: ''               # 改：留空由用户在设置里填，去掉第三方中转地址
+        apiKeyEnv: FISH_API_KEY
+        models:
+          - id: custom
+            name: 自定义模型
+
+- id: watch-duty
+  name: '@fish-watch/duty'
+  config:
+    enabled: true
+    perDay: 2
+    gapMin: 60
+    autoMode: manual
+    keywords:                     # 改：换成千肥万鱼语境
+      - 大肥鱼
+      - 日语
+      - GPT-SoVITS
+    targetSession: ""            # 改：填你自己的 DSH 会话 ID（公开发布时留空）
+    scanPrompt: |-
+      去本地 DSH 会话里转一圈，看看有没有需要大肥鱼回应的新消息。
+      只挑和 {direction} 相关的内容，其余跳过；确实没有就直说「没有新鲜的」。
+      最多 {n} 条，每条写清楚来源、要点和值得回应的理由。
+    # 改：删掉 pythonPath（千肥万鱼是 Node 服务，不依赖 python）
+
+- id: watch-mcp-client
+  name: '@fish-watch/mcp-client'
+  config:
+    servers:                      # 改：从 surfcore 的 node 脚本 → 千肥万鱼本地 HTTP 服务
+      - serverName: sovits
+        transport: http
+        baseURL: http://127.0.0.1:9880
+      - serverName: dsh-bridge
+        transport: http
+        baseURL: http://127.0.0.1:3080/m/api
+      - serverName: fish-watch
+        transport: http
+        baseURL: http://127.0.0.1:18765
+    toolCallTimeoutMs: 120000
+
+- id: watch-permission
+  name: '@fish-watch/permission-presets'
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+      local-full:
+        sandbox: danger-full-access
+        approval: never
+    defaultPreset: read-only      # 改：原 danger-full-access → 默认只读更安全
+
+- id: watch-vision-router
+  name: '@fish-watch/vision-router'
+  config:
+    progressiveTools: false
+    onboardingSeen: true
+    portraitRegion: upper-body    # 新增：视觉聚焦立绘上半身

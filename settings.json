@@ -1,0 +1,72 @@
+{
+  "petName": "",
+  "characterName": "",
+  "ownerName": "",
+  "chatName": "",
+  "portrait": "",
+  "tts": {
+    "enabled": false,
+    "autoRead": false,
+    "stripActions": true,
+    "engine": "browser",
+    "voice": "",
+    "rate": 1,
+    "pitch": 1,
+    "volume": 1
+  },
+  "image": {
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "",
+    "model": "gpt-image-1",
+    "size": "1024x1024",
+    "responseFormat": "b64_json"
+  },
+  "serverTts": {
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "",
+    "model": "tts-1",
+    "voice": "alloy",
+    "format": "mp3"
+  },
+  "sovits": {
+    "baseUrl": "http://127.0.0.1:9880",
+    "refAudioPath": "",
+    "promptText": "",
+    "promptLang": "zh",
+    "textLang": "zh",
+    "speed": 1,
+    "topK": 5,
+    "topP": 1,
+    "temperature": 1,
+    "splitMethod": "cut5",
+    "batchSize": 1,
+    "mediaType": "wav",
+    "streaming": false,
+    "timeoutSec": 120
+  },
+  "chat": {
+    "provider": "dsh",
+    "dshBaseUrl": "http://127.0.0.1:3080/m/api",
+    "dshSessionId": "",
+    "dshToken": "",
+    "apiBaseUrl": "https://api.deepseek.com/v1",
+    "apiKey": "",
+    "apiModel": "deepseek-chat",
+    "systemPrompt": "",
+    "maxTurns": 8,
+    "replyTimeoutSec": 100
+  },
+  "schedule": {
+    "enabled": true,
+    "driveScene": true,
+    "driveSlot": true,
+    "drivePortrait": true,
+    "source": "auto",
+    "autoGenerate": true
+  },
+  "diary": {
+    "enabled": true,
+    "time": "21:00",
+    "maxDays": 180
+  }
+}

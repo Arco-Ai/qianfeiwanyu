@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "note": "音频资源清单。BGM 提取自《亚托莉 -我的挚爱时光-》APK 的 data.xp3；环境音与音效由噪声合成。仅供千肥万鱼本地使用。",
+  "bgm": {
+    "morning": ["audio/bgm/morning1.ogg", "audio/bgm/morning2.ogg"],
+    "day": ["audio/bgm/day1.ogg", "audio/bgm/day2.ogg", "audio/bgm/day3.ogg"],
+    "dusk": ["audio/bgm/dusk1.ogg", "audio/bgm/dusk2.ogg"],
+    "night": ["audio/bgm/night1.ogg", "audio/bgm/night2.ogg"],
+    "menu": ["audio/bgm/menu.ogg"],
+    "warm": ["audio/bgm/warm.ogg"],
+    "sad": ["audio/bgm/sad.ogg"]
+  },
+  "amb": {
+    "waves": "audio/amb/waves.ogg",
+    "rain": "audio/amb/rain.ogg",
+    "wind": "audio/amb/wind.ogg"
+  },
+  "sfx": {
+    "click": "audio/sfx/click.ogg",
+    "confirm": "audio/sfx/confirm.ogg",
+    "page": "audio/sfx/page.ogg",
+    "chime": "audio/sfx/chime.ogg",
+    "collect": "audio/sfx/collect.ogg"
+  },
+  "sceneMood": {
+    "seaside": "waves", "deck": "waves", "island": "waves", "road": "waves", "school_sea": "waves",
+    "city": "wind", "highland": "wind", "highland_gray": "wind", "classroom_ruin": "wind", "corridor_ruin": "wind",
+    "cabin": "waves", "classroom": "wind", "corridor": "wind", "lab": "wind", "pavilion": "waves", "garden": "wind"
+  }
+}

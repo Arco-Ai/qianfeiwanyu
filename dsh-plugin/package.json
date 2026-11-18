@@ -1,0 +1,40 @@
+{
+  "name": "dsh-qianfeiwanyu",
+  "version": "1.0.0",
+  "description": "千肥万鱼的 DSH 联动桥：监听 DSH 会话状态（开始/结束/工具调用/出错），通过本机回环推送给千肥万鱼桌面观察台，让立绘表情与台词跟着 Agent 状态走。",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "dsh-plugin-bridge",
+    "desktop-pet",
+    "whale-girl",
+    "qianfeiwanyu"
+  ],
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-rc.2"
+  }
+}

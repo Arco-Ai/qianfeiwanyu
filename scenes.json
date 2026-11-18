@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "note": "场景库：时段 × 季节 × 场景。文件在 fish-watch/assets/bg/，由观察台生成，可自行替换同名文件。",
+  "seasons": [
+    "spring",
+    "summer",
+    "autumn",
+    "winter"
+  ],
+  "list": [
+    {
+      "id": "seaside",
+      "label": "海边码头",
+      "desc": "防波堤、系缆桩，那艘捞救船就停在旁边",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/seaside-morning.jpg",
+        "day": "bg/seaside-day.jpg",
+        "dusk": "bg/seaside-dusk.jpg",
+        "night": "bg/seaside-night.jpg"
+      }
+    },
+    {
+      "id": "cabin",
+      "label": "船舱客厅",
+      "desc": "木舱里的沙发、圆桌和一盏顶灯",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/cabin-morning.jpg",
+        "day": "bg/cabin-day.jpg",
+        "dusk": "bg/cabin-dusk.jpg",
+        "night": "bg/cabin-night.jpg"
+      }
+    },
+    {
+      "id": "deck",
+      "label": "船上甲板",
+      "desc": "吊臂、栏杆和一直延伸的海平线",
+      "seasons": [
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/deck-morning.jpg",
+        "day": "bg/deck-day.jpg",
+        "dusk": "bg/deck-dusk.jpg",
+        "night": "bg/deck-night.jpg"
+      }
+    },
+    {
+      "id": "school_sea",
+      "label": "海上校舍",
+      "desc": "漂在水上的旧校舍，钟楼还立着",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/school_sea-morning.jpg",
+        "day": "bg/school_sea-day.jpg",
+        "dusk": "bg/school_sea-dusk.jpg",
+        "night": "bg/school_sea-night.jpg"
+      }
+    },
+    {
+      "id": "classroom",
+      "label": "教室",
+      "desc": "桌椅整齐，窗外就是海",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/classroom-morning.jpg",
+        "day": "bg/classroom-day.jpg",
+        "dusk": "bg/classroom-dusk.jpg",
+        "night": "bg/classroom-night.jpg"
+      }
+    },
+    {
+      "id": "classroom_ruin",
+      "label": "淹水的教室",
+      "desc": "积了水的教室，光斑落在墙和桌面上",
+      "seasons": [
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/classroom_ruin-morning.jpg",
+        "day": "bg/classroom_ruin-day.jpg",
+        "dusk": "bg/classroom_ruin-dusk.jpg",
+        "night": "bg/classroom_ruin-night.jpg"
+      }
+    },
+    {
+      "id": "corridor",
+      "label": "走廊",
+      "desc": "沿窗的长廊，尽头是海",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/corridor-morning.jpg",
+        "day": "bg/corridor-day.jpg",
+        "dusk": "bg/corridor-dusk.jpg",
+        "night": "bg/corridor-night.jpg"
+      }
+    },
+    {
+      "id": "corridor_ruin",
+      "label": "淹水的走廊",
+      "desc": "积水的走廊，斜光把窗框拉得很长",
+      "seasons": [
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/corridor_ruin-morning.jpg",
+        "day": "bg/corridor_ruin-day.jpg",
+        "dusk": "bg/corridor_ruin-dusk.jpg",
+        "night": "bg/corridor_ruin-night.jpg"
+      }
+    },
+    {
+      "id": "highland",
+      "label": "高地草原",
+      "desc": "坡上的孤树、栅栏和一大片草",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/highland-morning.jpg",
+        "day": "bg/highland-day.jpg",
+        "dusk": "bg/highland-dusk.jpg",
+        "night": "bg/highland-night.jpg"
+      }
+    },
+    {
+      "id": "highland_gray",
+      "label": "灰白高地",
+      "desc": "阴天与风沙里，草色发白的高地",
+      "seasons": [
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/highland_gray-morning.jpg",
+        "day": "bg/highland_gray-day.jpg",
+        "dusk": "bg/highland_gray-dusk.jpg",
+        "night": "bg/highland_gray-night.jpg"
+      }
+    },
+    {
+      "id": "city",
+      "label": "城市废墟",
+      "desc": "塌了一半的街道，招牌还挂在墙上",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/city-morning.jpg",
+        "day": "bg/city-day.jpg",
+        "dusk": "bg/city-dusk.jpg",
+        "night": "bg/city-night.jpg"
+      }
+    },
+    {
+      "id": "road",
+      "label": "海边坡道",
+      "desc": "通往学校的那条坡道，两边是新绿",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "morning": "bg/road-morning.jpg",
+        "day": "bg/road-day.jpg",
+        "dusk": "bg/road-dusk.jpg",
+        "night": "bg/road-night.jpg"
+      }
+    },
+    {
+      "id": "pavilion",
+      "label": "水边凉亭",
+      "desc": "半沉在水里的木亭，台阶上都是水",
+      "seasons": [
+        "spring",
+        "summer"
+      ],
+      "slots": {
+        "morning": "bg/pavilion-morning.jpg",
+        "day": "bg/pavilion-day.jpg",
+        "dusk": "bg/pavilion-dusk.jpg",
+        "night": "bg/pavilion-night.jpg"
+      }
+    },
+    {
+      "id": "island",
+      "label": "人工岛",
+      "desc": "海面上的圆环平台与信号塔",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/island-morning.jpg",
+        "day": "bg/island-day.jpg",
+        "dusk": "bg/island-dusk.jpg",
+        "night": "bg/island-night.jpg"
+      }
+    },
+    {
+      "id": "garden",
+      "label": "废墟庭院",
+      "desc": "废墟里开满花的庭院与水池",
+      "seasons": [
+        "spring",
+        "summer"
+      ],
+      "slots": {
+        "morning": "bg/garden-morning.jpg",
+        "day": "bg/garden-day.jpg",
+        "dusk": "bg/garden-dusk.jpg",
+        "night": "bg/garden-night.jpg"
+      }
+    },
+    {
+      "id": "lab",
+      "label": "控制室",
+      "desc": "蓝色全息屏环绕的控制舱",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "morning": "bg/lab-morning.jpg",
+        "day": "bg/lab-day.jpg",
+        "dusk": "bg/lab-dusk.jpg",
+        "night": "bg/lab-night.jpg"
+      }
+    }
+  ]
+}

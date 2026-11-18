@@ -1,0 +1,43 @@
+# ===== 千肥万鱼 · 仓库纯净模式 .gitignore =====
+# 目标：仓库只保留源码、素材与配置；任何个人数据 / 密钥 / 临时构建都不入库。
+
+# --- 开发依赖：独立 exe 版与源码启动都不需要提交 ---
+node_modules/
+
+# --- 运行日志（可能含本机绝对路径、主机名、端口等环境信息）---
+*.log
+server-run.log
+
+# --- 使用者个人数据：由各人本地产生，绝不回传仓库 ---
+data/diaries/
+data/schedules/
+data/persona-backups/
+data/assetpack-backups/
+assets/uploads/
+persona.json
+chat-log.json
+window-state.json
+
+# --- 密钥 / 凭据：一律用环境变量或本地 settings.json，不提交实值 ---
+.env
+.env.*
+*.key
+*_secret*
+
+# --- 打包产物：体积大且含本机构建的二进制，仓库里不保留 ---
+dist/
+*.exe
+
+# --- 临时 / 编辑器 / 系统杂项 ---
+_*
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 说明：
+# 1. settings.json 出厂为空白模板（昵称、API Key、口令均为空），可随仓库提交；
+#    使用时填的真实密钥只留在本机，请勿把填过的 settings.json 提交上去。
+# 2. chat-log.json 随仓库保留为空 []，运行时写入的内容已被上面规则忽略。
+# 3. 需要独立 exe 版时，本机执行 `node desktop/build-portable.js` 自行生成。
