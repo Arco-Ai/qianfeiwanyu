@@ -169,5 +169,5 @@ git push -u origin main
 3. DSH 插件单独发布到 npm（可选）：在 `dsh-plugin/` 目录执行 `npm publish`，之后别人可 `dsh plugin add dsh-qianfeiwanyu`。
 4. 独立 exe 不入库（体积大，`.gitignore` 已忽略）；需要的话在 GitHub Releases 上传 `node desktop/build-portable.js` 生成的便携包。
 
-版权再确认：`assets/whale/` 的鲸鱼娘素材含 AI 生成与二创内容，亚托莉素材未入库；再分发前请按「六、素材署名」保留署名并如实标注。
+版权再确认：`assets/whale/` 的鲸鱼娘素材含 AI 生成与二创内容；再分发前请按「六、素材署名」保留署名并如实标注。
 
