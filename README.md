@@ -126,7 +126,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 ## 六、素材署名
 
 - **鲸鱼娘素材**：来自 [AATINF/deepseek-whale-girl-assets](https://github.com/AATINF/deepseek-whale-girl-assets)（二创扩展包，AI 生成），已抠成透明底 PNG 存于 `assets/whale/`（无损母版 WebP 备份在 `assets/whale-src/`，不随程序发布）。角色参考 [TreapGoGo/deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（MIT License, Copyright (c) 2026 TreapGoGo）。再分发请保留此署名，并如实标注使用了生成式 AI 辅助。
-- **场景背景图**：`assets/bg/` 下 16 个场景 × 4 时段共 128 张背景图（教室 / 走廊 / 船舱 / 海边 / 城市等），取自游戏**《亚托莉》（ATRI -My Dear Moments-）** 的场景素材，版权归原作品权利人所有。本项目仅将其作为本地桌面观察台的二创使用场景，未获官方授权；请勿将其当作可自由再分发的素材。如需对外发布或商用，请先取得原权利人的授权，或自行替换 `assets/bg/` 下的图片。
+- **场景背景图**：`assets/bg/` 下 14 个场景 × 3 时段（白天 / 傍晚 / 夜晚）共 84 张背景图（自宅 / 学校 / 教室 / 上学路 / 街道 / 餐厅 / 神社 / 澡堂 / 医院 / 山里等），均为**生成式 AI 绘制**的二次元场景，已转为 JPG 并生成 `-t` 缩略图。每张由 AI 生成、无第三方版权素材；场景清单见 `scenes.json`。
 - **背景音乐（BGM）**：`assets/audio/bgm/` 下的音乐为**原创程序化合成**（和弦进行 + 分解琶音 + 低音 + pad + 卷积混响，按早晨/白天/黄昏/夜晚/温暖/忧伤配不同调式与节奏），不采样、不引用任何现有曲目旋律，可自由再分发。生成脚本见仓库根目录 `gen_bgm.py`。
 - **环境音 / 音效**：`assets/audio/amb/`、`assets/audio/sfx/` 由本地噪声合成，无第三方版权问题。
 - **其他角色立绘**：未随本仓库提供；如需自行导入，请遵守对应原作者的授权，勿违规再分发。
@@ -138,7 +138,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 - **不含任何个人信息**：`settings.json` 为空白出厂模板（称呼、API Key、DSH 口令全空），`chat-log.json` 为 `[]`，无日记 / 日程 / 聊天记录 / 绝对路径 / 主机名。
 - **不含运行数据**：`data/` 下各目录为空（保留 `.gitkeep`），由使用者运行时自行生成。
 - **不含打包产物与依赖**：`dist/`、`node_modules/` 未包含；需要独立 exe 时在本机执行 `node desktop/build-portable.js` 生成。
-- **角色立绘与音频**：默认只提供成熟 / Q版两种鲸鱼娘立绘，不内置其他角色（如亚托莉）的立绘；BGM 与环境音均为原创/本地合成。需说明的是，内置**场景背景图 `assets/bg/` 使用了《亚托莉》游戏的场景素材**（详见「六、素材署名」），属第三方版权素材，再分发前请取得授权或自行替换。
+- **角色立绘与音频**：默认只提供成熟 / Q版两种鲸鱼娘立绘，不内置其他角色的立绘；BGM、环境音与场景背景图均为原创合成 / AI 生成（详见「六、素材署名」），无第三方版权素材。
 - **游戏模式**：点顶栏「游戏模式」或按 `Ctrl/⌘+G` 进入低占用状态，再按一次退出。
 
 如需提交前二次确认，执行：
@@ -175,5 +175,5 @@ git push -u origin main
 3. DSH 插件单独发布到 npm（可选）：在 `dsh-plugin/` 目录执行 `npm publish`，之后别人可 `dsh plugin add dsh-qianfeiwanyu`。
 4. 独立 exe 不入库（体积大，`.gitignore` 已忽略）；需要的话在 GitHub Releases 上传 `node desktop/build-portable.js` 生成的便携包。
 
-版权再确认：`assets/whale/` 的鲸鱼娘素材含 AI 生成与二创内容，BGM / 环境音 / 音效为原创合成，`assets/bg/` 的场景背景图来自《亚托莉》游戏（第三方版权素材）；再分发前请按「六、素材署名」保留署名、如实标注使用了生成式 AI 辅助，并就背景图取得原权利人授权或自行替换。
+版权再确认：`assets/whale/` 的鲸鱼娘素材、`assets/bg/` 的场景背景图均为 AI 生成 / 二创内容，BGM / 环境音 / 音效为原创合成；再分发前请按「六、素材署名」保留署名并如实标注使用了生成式 AI 辅助。
 

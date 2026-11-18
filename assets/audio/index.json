@@ -1,14 +1,33 @@
 {
   "version": 1,
-  "note": "音频资源清单。BGM 为原创程序化合成的治愈系音乐（和弦进行 + 分解琶音 + 低音 + pad + 混响），可自由再分发；环境音与音效由噪声合成。不联网、无第三方版权素材。",
+  "note": "音频资源清单。BGM 为原创程序化合成的治愈系音乐（和弦进行 + 分解琶音 + 低音 + pad + 混响），可自由再分发；环境音与音效由噪声合成。不联网、无第三方版权素材。 场景环境音按新 14 场景（3 时段）配置，均为本地合成。",
   "bgm": {
-    "morning": ["audio/bgm/morning1.ogg", "audio/bgm/morning2.ogg"],
-    "day": ["audio/bgm/day1.ogg", "audio/bgm/day2.ogg", "audio/bgm/day3.ogg"],
-    "dusk": ["audio/bgm/dusk1.ogg", "audio/bgm/dusk2.ogg"],
-    "night": ["audio/bgm/night1.ogg", "audio/bgm/night2.ogg"],
-    "menu": ["audio/bgm/menu.ogg"],
-    "warm": ["audio/bgm/warm.ogg"],
-    "sad": ["audio/bgm/sad.ogg"]
+    "morning": [
+      "audio/bgm/morning1.ogg",
+      "audio/bgm/morning2.ogg"
+    ],
+    "day": [
+      "audio/bgm/day1.ogg",
+      "audio/bgm/day2.ogg",
+      "audio/bgm/day3.ogg"
+    ],
+    "dusk": [
+      "audio/bgm/dusk1.ogg",
+      "audio/bgm/dusk2.ogg"
+    ],
+    "night": [
+      "audio/bgm/night1.ogg",
+      "audio/bgm/night2.ogg"
+    ],
+    "menu": [
+      "audio/bgm/menu.ogg"
+    ],
+    "warm": [
+      "audio/bgm/warm.ogg"
+    ],
+    "sad": [
+      "audio/bgm/sad.ogg"
+    ]
   },
   "amb": {
     "waves": "audio/amb/waves.ogg",
@@ -23,8 +42,19 @@
     "collect": "audio/sfx/collect.ogg"
   },
   "sceneMood": {
-    "seaside": "waves", "deck": "waves", "island": "waves", "road": "waves", "school_sea": "waves",
-    "city": "wind", "highland": "wind", "highland_gray": "wind", "classroom_ruin": "wind", "corridor_ruin": "wind",
-    "cabin": "waves", "classroom": "wind", "corridor": "wind", "lab": "wind", "pavilion": "waves", "garden": "wind"
+    "schoolroad": "wind",
+    "hospital": "wind",
+    "school": "wind",
+    "mountainroad": "wind",
+    "mountain": "wind",
+    "classroom": "wind",
+    "inn": "wind",
+    "bathhouse": "wind",
+    "shrine": "wind",
+    "home": "wind",
+    "street": "wind",
+    "street2": "wind",
+    "street3": "wind",
+    "restaurant": "wind"
   }
 }

@@ -1,11 +1,11 @@
 {
-  "note": "素材层配置。scenes.pin = auto（按季节自动轮换场景）/ custom（用下面 background 四张）/ 某个场景 id；scenes.season = auto 或 spring/summer/autumn/winter；scenes.slot = auto（跟系统时间）或 morning/day/dusk/night（手动锁定时段）。background 四个时段是「自定义」场景的内容；portrait 的 idle/happy/sad 会按 .dsh 的心情值自动切换（>=78 用 happy，<62 用 sad，其余 idle）。留空表示不使用该项。文件名只能是字母、数字、点、下划线、连字符。场景库在 assets/bg/（16 个场景 × 4 时段，由 scenes.json 定义），备用素材：bg_room.jpg（船舱室内）、official_bg.jpg（官网公开壁纸）。",
+  "note": "素材层配置。scenes.pin = auto（按季节自动轮换场景）/ custom（用下面 background 四张）/ 某个场景 id；scenes.season = auto 或 spring/summer/autumn/winter；scenes.slot = auto（跟系统时间）或 day/dusk/night（手动锁定时段）。background 三个时段是「自定义」场景的内容；portrait 的 idle/happy/sad 会按 .dsh 的心情值自动切换（>=78 用 happy，<62 用 sad，其余 idle）。留空表示不使用该项。文件名只能是字母、数字、点、下划线、连字符。场景库在 assets/bg/（14 个场景 × 3 时段，由 scenes.json 定义），备用素材：bg_room.jpg、official_bg.jpg。",
   "useDshPetArt": false,
   "form": "whale-mature",
   "whaleBgFromAtri": false,
   "whaleWallpaper": "",
   "scenes": {
-    "pin": "cabin",
+    "pin": "home",
     "season": "auto",
     "slot": "auto"
   },

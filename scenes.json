@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "note": "场景库：时段 × 季节 × 场景。文件在 fish-watch/assets/bg/，由观察台生成，可自行替换同名文件。",
+  "version": 2,
+  "note": "场景库：时段 × 季节 × 场景。素材为 AI 生成的《千恋万花》风格场景 PNG 转 JPG，3 时段（day/dusk/night），置于 assets/bg/；-t 为设置面板缩略图。",
   "seasons": [
     "spring",
     "summer",
@@ -9,25 +9,9 @@
   ],
   "list": [
     {
-      "id": "seaside",
-      "label": "海边码头",
-      "desc": "防波堤、系缆桩，那艘捞救船就停在旁边",
-      "seasons": [
-        "spring",
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/seaside-morning.jpg",
-        "day": "bg/seaside-day.jpg",
-        "dusk": "bg/seaside-dusk.jpg",
-        "night": "bg/seaside-night.jpg"
-      }
-    },
-    {
-      "id": "cabin",
-      "label": "船舱客厅",
-      "desc": "木舱里的沙发、圆桌和一盏顶灯",
+      "id": "schoolroad",
+      "label": "上学路",
+      "desc": "通往学校的街道，路旁是民居与小店",
       "seasons": [
         "spring",
         "summer",
@@ -35,31 +19,15 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/cabin-morning.jpg",
-        "day": "bg/cabin-day.jpg",
-        "dusk": "bg/cabin-dusk.jpg",
-        "night": "bg/cabin-night.jpg"
+        "day": "bg/schoolroad-day.jpg",
+        "dusk": "bg/schoolroad-dusk.jpg",
+        "night": "bg/schoolroad-night.jpg"
       }
     },
     {
-      "id": "deck",
-      "label": "船上甲板",
-      "desc": "吊臂、栏杆和一直延伸的海平线",
-      "seasons": [
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/deck-morning.jpg",
-        "day": "bg/deck-day.jpg",
-        "dusk": "bg/deck-dusk.jpg",
-        "night": "bg/deck-night.jpg"
-      }
-    },
-    {
-      "id": "school_sea",
-      "label": "海上校舍",
-      "desc": "漂在水上的旧校舍，钟楼还立着",
+      "id": "hospital",
+      "label": "医院",
+      "desc": "走廊尽头的病房，安静得能听见呼吸",
       "seasons": [
         "spring",
         "summer",
@@ -67,16 +35,62 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/school_sea-morning.jpg",
-        "day": "bg/school_sea-day.jpg",
-        "dusk": "bg/school_sea-dusk.jpg",
-        "night": "bg/school_sea-night.jpg"
+        "day": "bg/hospital-day.jpg",
+        "dusk": "bg/hospital-dusk.jpg",
+        "night": "bg/hospital-night.jpg"
+      }
+    },
+    {
+      "id": "school",
+      "label": "学校",
+      "desc": "校舍与操场，放学的铃声刚刚响过",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/school-day.jpg",
+        "dusk": "bg/school-dusk.jpg",
+        "night": "bg/school-night.jpg"
+      }
+    },
+    {
+      "id": "mountainroad",
+      "label": "山路",
+      "desc": "盘绕在山间的道路，两侧是树影",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn"
+      ],
+      "slots": {
+        "day": "bg/mountainroad-day.jpg",
+        "dusk": "bg/mountainroad-dusk.jpg",
+        "night": "bg/mountainroad-night.jpg"
+      }
+    },
+    {
+      "id": "mountain",
+      "label": "山里",
+      "desc": "被树林包围的山间空地，天色变化很快",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/mountain-day.jpg",
+        "dusk": "bg/mountain-dusk.jpg",
+        "night": "bg/mountain-night.jpg"
       }
     },
     {
       "id": "classroom",
       "label": "教室",
-      "desc": "桌椅整齐，窗外就是海",
+      "desc": "摆着课桌椅的教室，窗外光线正好",
       "seasons": [
         "spring",
         "summer",
@@ -84,31 +98,15 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/classroom-morning.jpg",
         "day": "bg/classroom-day.jpg",
         "dusk": "bg/classroom-dusk.jpg",
         "night": "bg/classroom-night.jpg"
       }
     },
     {
-      "id": "classroom_ruin",
-      "label": "淹水的教室",
-      "desc": "积了水的教室，光斑落在墙和桌面上",
-      "seasons": [
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/classroom_ruin-morning.jpg",
-        "day": "bg/classroom_ruin-day.jpg",
-        "dusk": "bg/classroom_ruin-dusk.jpg",
-        "night": "bg/classroom_ruin-night.jpg"
-      }
-    },
-    {
-      "id": "corridor",
-      "label": "走廊",
-      "desc": "沿窗的长廊，尽头是海",
+      "id": "inn",
+      "label": "旅馆",
+      "desc": "木造旅馆的房间与回廊，适合歇脚",
       "seasons": [
         "spring",
         "summer",
@@ -116,62 +114,15 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/corridor-morning.jpg",
-        "day": "bg/corridor-day.jpg",
-        "dusk": "bg/corridor-dusk.jpg",
-        "night": "bg/corridor-night.jpg"
+        "day": "bg/inn-day.jpg",
+        "dusk": "bg/inn-dusk.jpg",
+        "night": "bg/inn-night.jpg"
       }
     },
     {
-      "id": "corridor_ruin",
-      "label": "淹水的走廊",
-      "desc": "积水的走廊，斜光把窗框拉得很长",
-      "seasons": [
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/corridor_ruin-morning.jpg",
-        "day": "bg/corridor_ruin-day.jpg",
-        "dusk": "bg/corridor_ruin-dusk.jpg",
-        "night": "bg/corridor_ruin-night.jpg"
-      }
-    },
-    {
-      "id": "highland",
-      "label": "高地草原",
-      "desc": "坡上的孤树、栅栏和一大片草",
-      "seasons": [
-        "spring",
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/highland-morning.jpg",
-        "day": "bg/highland-day.jpg",
-        "dusk": "bg/highland-dusk.jpg",
-        "night": "bg/highland-night.jpg"
-      }
-    },
-    {
-      "id": "highland_gray",
-      "label": "灰白高地",
-      "desc": "阴天与风沙里，草色发白的高地",
-      "seasons": [
-        "autumn",
-        "winter"
-      ],
-      "slots": {
-        "morning": "bg/highland_gray-morning.jpg",
-        "day": "bg/highland_gray-day.jpg",
-        "dusk": "bg/highland_gray-dusk.jpg",
-        "night": "bg/highland_gray-night.jpg"
-      }
-    },
-    {
-      "id": "city",
-      "label": "城市废墟",
-      "desc": "塌了一半的街道，招牌还挂在墙上",
+      "id": "bathhouse",
+      "label": "澡堂",
+      "desc": "热气腾腾的大浴场，瓷砖映着光",
       "seasons": [
         "spring",
         "summer",
@@ -179,47 +130,15 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/city-morning.jpg",
-        "day": "bg/city-day.jpg",
-        "dusk": "bg/city-dusk.jpg",
-        "night": "bg/city-night.jpg"
+        "day": "bg/bathhouse-day.jpg",
+        "dusk": "bg/bathhouse-dusk.jpg",
+        "night": "bg/bathhouse-night.jpg"
       }
     },
     {
-      "id": "road",
-      "label": "海边坡道",
-      "desc": "通往学校的那条坡道，两边是新绿",
-      "seasons": [
-        "spring",
-        "summer",
-        "autumn"
-      ],
-      "slots": {
-        "morning": "bg/road-morning.jpg",
-        "day": "bg/road-day.jpg",
-        "dusk": "bg/road-dusk.jpg",
-        "night": "bg/road-night.jpg"
-      }
-    },
-    {
-      "id": "pavilion",
-      "label": "水边凉亭",
-      "desc": "半沉在水里的木亭，台阶上都是水",
-      "seasons": [
-        "spring",
-        "summer"
-      ],
-      "slots": {
-        "morning": "bg/pavilion-morning.jpg",
-        "day": "bg/pavilion-day.jpg",
-        "dusk": "bg/pavilion-dusk.jpg",
-        "night": "bg/pavilion-night.jpg"
-      }
-    },
-    {
-      "id": "island",
-      "label": "人工岛",
-      "desc": "海面上的圆环平台与信号塔",
+      "id": "shrine",
+      "label": "神社",
+      "desc": "石阶尽头的小神社，风铃轻轻响",
       "seasons": [
         "spring",
         "summer",
@@ -227,31 +146,15 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/island-morning.jpg",
-        "day": "bg/island-day.jpg",
-        "dusk": "bg/island-dusk.jpg",
-        "night": "bg/island-night.jpg"
+        "day": "bg/shrine-day.jpg",
+        "dusk": "bg/shrine-dusk.jpg",
+        "night": "bg/shrine-night.jpg"
       }
     },
     {
-      "id": "garden",
-      "label": "废墟庭院",
-      "desc": "废墟里开满花的庭院与水池",
-      "seasons": [
-        "spring",
-        "summer"
-      ],
-      "slots": {
-        "morning": "bg/garden-morning.jpg",
-        "day": "bg/garden-day.jpg",
-        "dusk": "bg/garden-dusk.jpg",
-        "night": "bg/garden-night.jpg"
-      }
-    },
-    {
-      "id": "lab",
-      "label": "控制室",
-      "desc": "蓝色全息屏环绕的控制舱",
+      "id": "home",
+      "label": "自宅",
+      "desc": "她的家，客厅灯光温暖而日常",
       "seasons": [
         "spring",
         "summer",
@@ -259,10 +162,73 @@
         "winter"
       ],
       "slots": {
-        "morning": "bg/lab-morning.jpg",
-        "day": "bg/lab-day.jpg",
-        "dusk": "bg/lab-dusk.jpg",
-        "night": "bg/lab-night.jpg"
+        "day": "bg/home-day.jpg",
+        "dusk": "bg/home-dusk.jpg",
+        "night": "bg/home-night.jpg"
+      }
+    },
+    {
+      "id": "street",
+      "label": "街道",
+      "desc": "商店街的石板路，招牌一家挨一家",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/street-day.jpg",
+        "dusk": "bg/street-dusk.jpg",
+        "night": "bg/street-night.jpg"
+      }
+    },
+    {
+      "id": "street2",
+      "label": "街道二",
+      "desc": "另一条街角，视野更开阔些",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/street2-day.jpg",
+        "dusk": "bg/street2-dusk.jpg",
+        "night": "bg/street2-night.jpg"
+      }
+    },
+    {
+      "id": "street3",
+      "label": "街道三",
+      "desc": "安静的小巷，午后阳光斜斜落下",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/street3-day.jpg",
+        "dusk": "bg/street3-dusk.jpg",
+        "night": "bg/street3-night.jpg"
+      }
+    },
+    {
+      "id": "restaurant",
+      "label": "餐厅",
+      "desc": "小餐馆的座位，桌上有刚端来的热食",
+      "seasons": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "slots": {
+        "day": "bg/restaurant-day.jpg",
+        "dusk": "bg/restaurant-dusk.jpg",
+        "night": "bg/restaurant-night.jpg"
       }
     }
   ]

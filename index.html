@@ -1133,7 +1133,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
           </div>
           <div class="mgroup">
             <h3>表情差分</h3>
-            <p class="desc">已装入成套表情差分立绘。开启后她会按<b>心情</b>（≥78 开心 / &lt;62 低落）、<b>时段</b>（清晨困倦、白天平静、黄昏 relax、夜晚入睡）和<b>回复内容</b>（聊到「哈哈」会笑、说到「抱歉」会低落……自动反应几秒后回落）自动换表情。当前形态用哪套表情由上方「角色形态」决定；下面上传的自定义立绘仍保留，关掉本开关即可切回。</p>
+            <p class="desc">已装入成套表情差分立绘。开启后她会按<b>心情</b>（≥78 开心 / &lt;62 低落）、<b>时段</b>（白天平静、傍晚 relax、夜晚入睡）和<b>回复内容</b>（聊到「哈哈」会笑、说到「抱歉」会低落……自动反应几秒后回落）自动换表情。当前形态用哪套表情由上方「角色形态」决定；下面上传的自定义立绘仍保留，关掉本开关即可切回。</p>
             <div class="field"><label>启用表情差分</label><input type="checkbox" id="atriExprOn" style="accent-color:var(--accent)"><span class="unit">心情 / 时段自动换表情</span></div>
             <div class="field"><label>回复触发反应</label><input type="checkbox" id="atriReactOn" style="accent-color:var(--accent)"><span class="unit">聊天命中关键词时短暂切表情</span></div>
             <div class="field"><label>默认表情立绘</label><select id="atriDefaultFace"><option value="">自动（按心情 / 时段）</option></select><span class="unit">「平静 / 日常」时固定用这张，可手动挑一张当默认</span></div>
@@ -1166,7 +1166,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
         <section class="msection hidden" id="tab-assets">
           <div class="mgroup">
             <h3>背景场景</h3>
-            <p class="desc">背景按「时段 × 季节 × 场景」自动挑：同一时段内固定一张，跨时段或换天才换。共 <b id="sceneCount">—</b> 个场景、每个 4 个时段。想换时间不必等真实时间走到，直接在下面「时段」里挑清晨 / 白天 / 黄昏 / 夜晚即可（天空色调一起换）。钉住某个场景后不再自动换；点顶栏的「场景」按钮也能随手往后翻。</p>
+            <p class="desc">背景按「时段 × 季节 × 场景」自动挑：同一时段内固定一张，跨时段或换天才换。共 <b id="sceneCount">—</b> 个场景、每个 3 个时段。想换时间不必等真实时间走到，直接在下面「时段」里挑白天 / 傍晚 / 夜晚即可（天空色调一起换）。钉住某个场景后不再自动换；点顶栏的「场景」按钮也能随手往后翻。</p>
             <div class="field">
               <label>场景</label>
               <select id="scenePin"></select>
@@ -1176,18 +1176,16 @@ body.game-mode #gameFlag{display:inline-flex!important}
               <label>时段</label>
               <select id="sceneSlot">
                 <option value="auto">跟随系统时间</option>
-                <option value="morning">清晨（05:00–09:00）</option>
                 <option value="day">白天（09:00–17:00）</option>
-                <option value="dusk">黄昏（17:00–20:00）</option>
+                <option value="dusk">傍晚（17:00–21:00）</option>
                 <option value="night">夜晚（20:00–05:00）</option>
               </select>
               <span class="unit" id="sceneSlotHint">锁定后不再随真实时间变化</span>
             </div>
             <div class="slotseg" id="sceneSlotSeg">
               <button type="button" data-slot="auto">跟随时间</button>
-              <button type="button" data-slot="morning"><i class="sdot"></i>清晨</button>
               <button type="button" data-slot="day"><i class="sdot"></i>白天</button>
-              <button type="button" data-slot="dusk"><i class="sdot"></i>黄昏</button>
+              <button type="button" data-slot="dusk"><i class="sdot"></i>傍晚</button>
               <button type="button" data-slot="night"><i class="sdot"></i>夜晚</button>
             </div>
             <div class="field">
@@ -1217,9 +1215,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
               <select id="assetSlot">
                 <option value="__library__">只存入素材库（稍后手动指派）</option>
                 <option value="background.all">全部背景时段（四个时段都用这张）</option>
-                <option value="background.morning">背景 · 清晨</option>
                 <option value="background.day">背景 · 白天</option>
-                <option value="background.dusk">背景 · 黄昏</option>
+                <option value="background.dusk">背景 · 傍晚</option>
                 <option value="background.night">背景 · 夜晚</option>
                 <option value="portrait.all">全部立绘表情（三种表情都用这张）</option>
                 <option value="portrait.idle">立绘 · 平静</option>
@@ -1404,8 +1401,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
               <span class="unit">切换来源会自动保存</span>
             </div>
             <div class="field"><label>本地自动生成</label><input type="checkbox" id="schAutoGenerate" style="accent-color:var(--accent)"><span class="unit">没有当天日程时，由千肥万鱼本地生成一份</span></div>
-            <div class="field"><label>按地点换背景</label><input type="checkbox" id="schScene" style="accent-color:var(--accent)"><span class="unit">家 → 船舱、工作 → 控制室、外出 → 城市…</span></div>
-            <div class="field"><label>按时间换时段</label><input type="checkbox" id="schSlot" style="accent-color:var(--accent)"><span class="unit">清晨 / 白天 / 黄昏 / 夜晚，跟着日程时间走</span></div>
+            <div class="field"><label>按地点换背景</label><input type="checkbox" id="schScene" style="accent-color:var(--accent)"><span class="unit">家 → 自宅、工作 → 学校、外出 → 街道…</span></div>
+            <div class="field"><label>按时间换时段</label><input type="checkbox" id="schSlot" style="accent-color:var(--accent)"><span class="unit">白天 / 傍晚 / 夜晚，跟着日程时间走</span></div>
             <div class="field"><label>按活动换立绘</label><input type="checkbox" id="schPortrait" style="accent-color:var(--accent)"><span class="unit">吃东西 → 开心、加班 → 低落，其余 → 平静</span></div>
             <p class="desc" id="schStatus" style="margin:10px 0 0">—</p>
           </div>
@@ -1580,7 +1577,6 @@ body.game-mode #gameFlag{display:inline-flex!important}
   function skip(){if(typed)return;clearInterval(typing);$('line').textContent=fullText;typed=true;$('dlgNext').classList.add('ready')}
 
   var SKY={
-    morning:['#f7d9bd','#fdf0e2','#e0b9a6'],
     day:['#bfe3f5','#e9f5fb','#8fc6dd'],
     dusk:['#f6bb92','#fbe0c8','#c58f8f'],
     night:['#3a5278','#6b82a5','#2f4a6b']
@@ -1592,8 +1588,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
     applyBackground();
   }
 
-  function timeKey(){var h=new Date().getHours();if(h>=5&&h<9)return 'morning';if(h>=9&&h<17)return 'day';if(h>=17&&h<20)return 'dusk';return 'night'}
-  var SLOT_KEYS=['morning','day','dusk','night'];
+  function timeKey(){var h=new Date().getHours();if(h>=9&&h<17)return 'day';if(h>=17&&h<21)return 'dusk';return 'night'}
+  var SLOT_KEYS=['day','dusk','night'];
   /* 日程驱动优先级最高；否则手动选定优先，'auto' 才跟系统时间走 */
   function schedOn(key){
     if(!SCHEDULE||!SCHEDULE.available||!SCHEDULE.mapping)return false;
@@ -1614,17 +1610,16 @@ body.game-mode #gameFlag{display:inline-flex!important}
   function slotManual(){return SLOT_KEYS.indexOf(sceneStateQuick().slot)>=0}
   function slotNum(){
     var s=slotActive();
-    if(s==='morning')return '05:00–09:00';
     if(s==='day')return '09:00–17:00';
-    if(s==='dusk')return '17:00–20:00';
+    if(s==='dusk')return '17:00–21:00';
     return '20:00–05:00';
   }
   function hasAsset(f){return !!(f&&ASSETS&&ASSETS.files&&ASSETS.files.indexOf(f)>=0)}
   /* ---------- 场景库：时段 × 季节 × 场景 ---------- */
   var SEASON_LABEL={spring:'春',summer:'夏',autumn:'秋',winter:'冬'};
   var SEASON_KEYS=['spring','summer','autumn','winter'];
-  var SLOT_INDEX={morning:0,day:1,dusk:2,night:3};
-  var SLOT_LABEL={morning:'清晨',day:'白天',dusk:'黄昏',night:'夜晚'};
+  var SLOT_INDEX={day:0,dusk:1,night:2};
+  var SLOT_LABEL={day:'白天',dusk:'傍晚',night:'夜晚'};
   function sceneLib(){return (SCENES&&SCENES.list)||[]}
   function sceneStateQuick(){return (SCENES&&SCENES.state)||{pin:'auto',season:'auto'}}
   function seasonNow(){var m=new Date().getMonth()+1;if(m>=3&&m<=5)return 'spring';if(m>=6&&m<=8)return 'summer';if(m>=9&&m<=11)return 'autumn';return 'winter'}
@@ -2288,7 +2283,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
 
   function todayKey(){var d=new Date(),p=function(x){return String(x).padStart(2,'0')};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())}
   function dateKeyOffset(days){var d=new Date(),p=function(x){return String(x).padStart(2,'0')};d.setDate(d.getDate()+(days||0));return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())}
-  /* 夜间挑「清晨」指的是次日清晨，日期要算到明天 */
+  /* 夜间挑下一时段时，日期要算到明天 */
   function destKey(slot,dayOffset){return dateKeyOffset(dayOffset)+'|'+slot}
   function mdKey(){var d=new Date(),p=function(x){return String(x).padStart(2,'0')};return p(d.getMonth()+1)+'-'+p(d.getDate())}
 
@@ -2673,16 +2668,16 @@ body.game-mode #gameFlag{display:inline-flex!important}
 
   /* ---------- 日程选择：下一步去哪里 ---------- */
   var DEST_OPTIONS=[
-    {id:'cabin',name:'回船舱',desc:'窝进沙发，听海浪慢慢拍岸',tag:'休息'},
-    {id:'seaside',name:'去防波堤看海',desc:'吹海风，看夕阳落进水里',tag:'散步'},
+    {id:'home',name:'回自宅',desc:'回到熟悉的客厅，歇一会儿',tag:'休息'},
+    {id:'schoolroad',name:'去上学路',desc:'沿路慢慢走，看看街边小店',tag:'散步'},
     {id:'classroom',name:'去教室学习',desc:'陪她记单词、练发音',tag:'学习'},
-    {id:'pavilion',name:'去水边凉亭',desc:'坐下来吃点点心',tag:'吃东西'},
-    {id:'lab',name:'去控制室',desc:'看全息屏，整理资料',tag:'工作'},
-    {id:'city',name:'去逛城市废墟',desc:'沿街走走，捡点小东西',tag:'外出'},
-    {id:'island',name:'去人工岛',desc:'看展览，发现有趣的小玩意',tag:'外出'},
-    {id:'garden',name:'去废墟庭院',desc:'花与水池边坐一会儿',tag:'散步'},
-    {id:'highland',name:'去高地草原',desc:'看孤树和一大片草',tag:'散步'},
-    {id:'deck',name:'去甲板',desc:'看吊臂和延伸的海平线',tag:'散步'}
+    {id:'restaurant',name:'去餐厅吃饭',desc:'坐下来吃点热乎的',tag:'吃东西'},
+    {id:'school',name:'去学校',desc:'在校园里走走，看看操场',tag:'工作'},
+    {id:'street',name:'去街道逛逛',desc:'商店街的石板路，招牌一家挨一家',tag:'外出'},
+    {id:'shrine',name:'去神社',desc:'石阶尽头听听风铃，许个愿',tag:'散步'},
+    {id:'bathhouse',name:'去澡堂',desc:'泡个澡，把一天的疲劳冲掉',tag:'休息'},
+    {id:'mountain',name:'去山里',desc:'树影和空地，天色变得很快',tag:'散步'},
+    {id:'hospital',name:'去医院',desc:'安静的走廊，陪她坐坐',tag:'外出'}
   ];
   function destCandidates(slot,dayOffset){
     var cur=(currentScene&&currentScene())||{},pool=DEST_OPTIONS.filter(function(o){return o.id!==cur.id});
@@ -2716,11 +2711,11 @@ body.game-mode #gameFlag{display:inline-flex!important}
     fx('scene');applyBackground();playBgm(slot,'idle');
     var who=S&&S.identity&&S.identity.character||'亚托莉';
     var lines={
-      cabin:'好，回家吧。海浪声听着就让人安心。',seaside:'嗯！去看海。风会把我头发吹乱，不过没关系。',
-      classroom:'去教室呀，我带你认几个新单词。',pavilion:'凉亭那边应该有好吃的，走吧！',
-      lab:'去控制室？那我给你看看全息屏。',city:'城市废墟……要小心脚下哦，我陪你。',
-      island:'人工岛的展览还没看完呢，一起去吧。',garden:'花园现在正是好看的时候，去走走嘛。',
-      highland:'想去高地！那里风很大，草会一路铺到天边。',deck:'甲板上海平线特别长，去看看吧。'
+      home:'好，回家吧。客厅的灯亮着，让人安心。',schoolroad:'嗯！去上学路。我们慢慢走，不着急。',
+      classroom:'去教室呀，我带你认几个新单词。',restaurant:'餐厅吗？我也正好有点饿了，走吧！',
+      school:'去学校？那我们去操场边坐坐吧。',street:'去街道逛逛吧，看看有什么新开的店。',
+      shrine:'去神社呀，风铃响起来特别好听。',bathhouse:'泡澡吗？好呀，正好暖和一下。',
+      mountain:'想去山里！树影一层一层的，天色变得可快了。',hospital:'去医院……嗯，我陪着你，别担心。'
     };
     say(who,lines[o.id]||('好呀，我们去'+(o.name||'那里')+'。'));
     toast('已决定去「'+o.name+'」· 好感 +2');
@@ -2737,22 +2732,20 @@ body.game-mode #gameFlag{display:inline-flex!important}
   /* ---------- 对话里提到场景 → 询问是否前往 ---------- */
   /* 别名表：素材里确实存在的场景。口语「去教室 / 回船舱」都能认出来。 */
   var SCENE_ALIAS={
-    seaside:['海边','码头','防波堤','海滩'],
-    cabin:['船舱','客厅','家里'],
-    deck:['甲板','船上'],
-    school_sea:['海上校舍','校舍'],
+    home:['自宅','家里','客厅','回家'],
+    schoolroad:['上学路','街道','路上'],
+    school:['学校','校舍','操场'],
+    mountainroad:['山路','山道'],
+    mountain:['山里','山间','树林'],
     classroom:['教室'],
-    classroom_ruin:['淹水的教室','积水教室'],
-    corridor:['走廊','长廊'],
-    corridor_ruin:['淹水的走廊','积水走廊'],
-    highland:['高地草原','高地'],
-    highland_gray:['灰白高地'],
-    city:['城市废墟'],
-    road:['海边坡道','坡道'],
-    pavilion:['水边凉亭','凉亭'],
-    island:['人工岛'],
-    garden:['废墟庭院','庭院','花园'],
-    lab:['控制室','实验室','机房']
+    inn:['旅馆','客栈'],
+    bathhouse:['澡堂','浴场','泡澡'],
+    shrine:['神社','神殿'],
+    street:['街道','商店街'],
+    street2:['街道二','第二条街'],
+    street3:['街道三','小巷'],
+    restaurant:['餐厅','饭店','吃饭'],
+    hospital:['医院','医院走廊']
   };
   var sceneAskPending=null, sceneAskLast='', sceneAskAt=0, sceneAutoMuteUntil=0;
   /* 从一段话里找「去/回 + 场景」，返回 {id,label,alias}；只认素材里有的场景 */
@@ -2852,7 +2845,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     h+='</div></div>';
     return h;
   }
-  function singleSlot(){var sl=SLOT_KEYS||['morning','day','dusk','night'];return sl[0]}
+  function singleSlot(){var sl=SLOT_KEYS||['day','dusk','night'];return sl[0]}
   function panelQuotes(){
     var qs=COLL.quotes||[],h='<div class="card"><h3>台词本 <small>'+qs.length+' 句</small></h3>'+
       '<div class="note" style="margin-bottom:10px">点右下角工具栏的 ♡ 收藏她说过的话。</div>';
@@ -3030,13 +3023,12 @@ body.game-mode #gameFlag{display:inline-flex!important}
     }).catch(function(e){if(st)st.textContent='查询失败';toast('天气查询失败：'+e.message)});
   }
   function liveStoryLine(){
-    var h=new Date().getHours(),slot=h>=5&&h<9?'清晨':h>=9&&h<17?'白天':h>=17&&h<20?'黄昏':'夜里';
+    var h=new Date().getHours(),slot=h>=9&&h<17?'白天':h>=17&&h<21?'傍晚':'夜里';
     var w=PLAY.weather,wtext=w?(weatherLabel(w.code)+'的'):'';
     var cur=(SCHEDULE&&SCHEDULE.current&&SCHEDULE.current.activity)||'';
     var who=S&&S.identity&&S.identity.character||'亚托莉';
     if(w&&w.code>=51)return [who,wtext+slot+'，天气不太好呢。'+(cur?'不过你在做「'+cur+'」，我陪着你。':'要不要听会儿雨声？')];
-    if(slot==='清晨')return [who,'早安。'+wtext+'清晨，海面很安静，适合慢慢开始。'];
-    if(slot==='黄昏')return [who,'太阳快落下去了。'+wtext+'黄昏总让我想起一些事……你在就好。'];
+    if(slot==='傍晚')return [who,'太阳快落下去了。'+wtext+'傍晚总让我想起一些事……你在就好。'];
     if(slot==='夜里')return [who,'夜深了。'+wtext+'夜里别忘了休息哦，我会在旁边守着。'];
     return [who,wtext+'白天，'+'精神不错吧？今天也要一起加油。'];
   }
@@ -3216,7 +3208,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
         '<circle cx="290" cy="'+(76-Math.max(0,Math.min(100,last[last.length-1].mood))/100*66).toFixed(1)+'" r="3.5" fill="#d9865a"/></svg>'+
         '<div class="note">从 '+fmtTime(new Date(last[0].at).toISOString())+' 到 '+fmtTime(new Date(last[last.length-1].at).toISOString())+'</div></div>';
     }
-    var buckets=[{k:'清晨',a:5,b:9},{k:'白天',a:9,b:17},{k:'黄昏',a:17,b:20},{k:'夜里',a:20,b:29}];
+    var buckets=[{k:'白天',a:9,b:17},{k:'傍晚',a:17,b:21},{k:'夜里',a:21,b:33}];
     h+='<div class="card"><h3>一天里的心情分布</h3>';
     buckets.forEach(function(bk){
       var arr=day.filter(function(t){var hr=new Date(t.at).getHours();return hr>=bk.a&&hr<bk.b});
@@ -3741,9 +3733,8 @@ body.game-mode #gameFlag{display:inline-flex!important}
 
   /* ---------- 素材槽位：上传 / 指派 / 删除 ---------- */
   var SLOT_DEFS=[
-    {slot:'background.morning',label:'背景 · 清晨'},
     {slot:'background.day',label:'背景 · 白天'},
-    {slot:'background.dusk',label:'背景 · 黄昏'},
+    {slot:'background.dusk',label:'背景 · 傍晚'},
     {slot:'background.night',label:'背景 · 夜晚'},
     {slot:'portrait.idle',label:'立绘 · 平静'},
     {slot:'portrait.happy',label:'立绘 · 开心'},
