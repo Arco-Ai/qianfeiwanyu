@@ -3,7 +3,7 @@
   "productName": "千肥万鱼",
   "version": "1.0.0",
   "private": true,
-  "description": "千肥万鱼 · 亚托莉桌面客户端",
+  "description": "千肥万鱼 · 桌面观察台",
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",

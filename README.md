@@ -24,7 +24,7 @@
 
 适合挂机打游戏：画面还在，但不让 GPU 反复合成动画，也不让 CPU 来回读文件。聊天、设置等功能退出游戏模式后照常用。
 
-## 一、快速开始（两种方式，任选其一）
+## 一、快速开始（三种方式，任选其一）
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
@@ -37,8 +37,9 @@
 
 ### 方式 B：源码模式（需要 Node.js 18+）
 
+在仓库根目录（包含 `server.js` 的那一层）执行：
+
 ```bash
-cd fish-watch
 node server.js
 ```
 
@@ -76,8 +77,8 @@ dsh plugin --profile desktop add ./dsh-plugin
 
 ## 二、换电脑 / 拷给别人
 
-- **独立版**：把整个 `dist/千肥万鱼/` 文件夹拷过去即可。设置、素材、日程、日记都写在文件夹内部，跟着走。
-- **源码版**：把整个 `fish-watch/` 文件夹拷过去，有 Node 18+ 就能跑。
+- **独立版**：把从 Releases 下载并解压后的 `千肥万鱼/` 文件夹整个拷过去即可。设置、素材、日程、日记都写在文件夹内部，跟着走。
+- **源码版**：把整个仓库文件夹拷过去，有 Node 18+ 就能跑。
 - 端口默认 `18765`。若被占用，桌面版会自动换一个端口；源码版可设环境变量 `FISH_WATCH_PORT=18766` 指定。
 
 ### 可选：连接别的电脑上的 DSH
@@ -125,6 +126,8 @@ dsh plugin --profile desktop add ./dsh-plugin
 ## 六、素材署名
 
 - **鲸鱼娘素材**：来自 [AATINF/deepseek-whale-girl-assets](https://github.com/AATINF/deepseek-whale-girl-assets)（二创扩展包，AI 生成），已抠成透明底 PNG 存于 `assets/whale/`（无损母版 WebP 备份在 `assets/whale-src/`，不随程序发布）。角色参考 [TreapGoGo/deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（MIT License, Copyright (c) 2026 TreapGoGo）。再分发请保留此署名，并如实标注使用了生成式 AI 辅助。
+- **背景音乐（BGM）**：`assets/audio/bgm/` 下的音乐提取自商业游戏《亚托莉 -我的挚爱时光-》APK 内的 `data.xp3`，版权归原权利人所有，仅随本仓库作个人本地使用示例提供。**再分发前请自行确认授权，或删除这些文件**（删除后程序仍可正常运行，只是无 BGM；环境音与音效为本地噪声合成，不受影响）。
+- **环境音 / 音效**：`assets/audio/amb/`、`assets/audio/sfx/` 由本地噪声合成，无第三方版权问题。
 - **其他角色立绘**：未随本仓库提供；如需自行导入，请遵守对应原作者的授权，勿违规再分发。
 
 ## 七、仓库版（纯净模式）说明
@@ -134,7 +137,7 @@ dsh plugin --profile desktop add ./dsh-plugin
 - **不含任何个人信息**：`settings.json` 为空白出厂模板（称呼、API Key、DSH 口令全空），`chat-log.json` 为 `[]`，无日记 / 日程 / 聊天记录 / 绝对路径 / 主机名。
 - **不含运行数据**：`data/` 下各目录为空（保留 `.gitkeep`），由使用者运行时自行生成。
 - **不含打包产物与依赖**：`dist/`、`node_modules/` 未包含；需要独立 exe 时在本机执行 `node desktop/build-portable.js` 生成。
-- **未包含第三方受限素材**：默认只提供成熟 / Q版两种鲸鱼娘立绘，无其他角色的内置立绘；功能不受影响。
+- **未包含第三方受限立绘**：默认只提供成熟 / Q版两种鲸鱼娘立绘，无其他角色的内置立绘；功能不受影响。注意 `assets/audio/bgm/` 的 BGM 提取自商业游戏，版权说明见「六、素材署名」。
 - **游戏模式**：点顶栏「游戏模式」或按 `Ctrl/⌘+G` 进入低占用状态，再按一次退出。
 
 如需提交前二次确认，执行：
@@ -147,7 +150,7 @@ git check-ignore -v data/diaries/2026-01-01.json dist/千肥万鱼/千肥万鱼.
 
 ## 八、上传到 GitHub
 
-当前目录（`千肥万鱼-repo/`）就是纯净副本，可直接作为仓库根。用 Git Bash 在这个目录里执行：
+仓库源码本身即是纯净副本，可直接作为项目根目录使用。用 Git Bash 在这个目录里执行：
 
 ```bash
 cd 千肥万鱼-repo
@@ -171,5 +174,5 @@ git push -u origin main
 3. DSH 插件单独发布到 npm（可选）：在 `dsh-plugin/` 目录执行 `npm publish`，之后别人可 `dsh plugin add dsh-qianfeiwanyu`。
 4. 独立 exe 不入库（体积大，`.gitignore` 已忽略）；需要的话在 GitHub Releases 上传 `node desktop/build-portable.js` 生成的便携包。
 
-版权再确认：`assets/whale/` 的鲸鱼娘素材含 AI 生成与二创内容；再分发前请按「六、素材署名」保留署名并如实标注。
+版权再确认：`assets/whale/` 的鲸鱼娘素材含 AI 生成与二创内容，`assets/audio/bgm/` 的 BGM 提取自商业游戏；再分发前请按「六、素材署名」保留署名、如实标注并自行确认授权。
 
