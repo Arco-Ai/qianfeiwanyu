@@ -2012,9 +2012,13 @@ async function createDshWorkspace() {
 /* 目标会话：设置里明确指定过，就只认那一个；只有从未选过时才默认列表第一个。
  * 明确指定却找不到（被删 / 改名 / DSH 重启换了 id）返回 null，由调用方提示重选，
  * 绝不悄悄换成别的会话，避免把私人对话发给另一个 Agent。 */
+function dshSessionOf(list, want) {
+  if (!want) return null;
+  return list.find(s => s.id === want || s.agentId === want) || null;
+}
 function pickDshSession(list) {
   const want = (SETTINGS.chat && SETTINGS.chat.dshSessionId) || '';
-  if (want) return list.find(s => s.id === want || s.agentId === want) || null;
+  if (want) return dshSessionOf(list, want);
   return list[0] || null;
 }
 function hasPinnedDshSession() {
@@ -2022,6 +2026,14 @@ function hasPinnedDshSession() {
 }
 function dshSessionLostError() {
   return httpError(409, '设置里选定的 DSH 会话已经不在列表里（可能被删除、改名，或 DSH 重启后换了 id）。请在对话面板顶部的会话下拉里重新选一个目标，再发送。');
+}
+/* 这次等待被作废（清空记录 / 切换目标）：回一个统一结构，调用方不再写记录 */
+function cancelledChat(target) {
+  return {
+    reply: '', done: false, cancelled: true,
+    sessionId: target ? target.id : '',
+    sessionTitle: target ? target.title : '',
+  };
 }
 /* 从未选过时把当前默认会话记下来：从此目标是确定的，列表变化会明确报错而不是漂移。
  * 只是加固，不参与发送成败——落盘失败就当没记住，这次照常发。 */
@@ -2054,11 +2066,15 @@ async function dshCollect(sessionId, cursor) {
 }
 
 async function chatViaDsh(text) {
-  const epoch = chatEpoch;   /* 发送期间若被「清空记录」作废，就不再挂起等待 */
+  const epoch = chatEpoch;   /* 发送期间若被「清空记录 / 切换目标」作废，就整条放弃 */
+  /* 目标在入口就定下来：之后一律用它，不读可能已经变了的 SETTINGS */
+  const wantAtStart = (SETTINGS.chat && SETTINGS.chat.dshSessionId) || '';
   const st = await dshSessions();
-  const target = pickDshSession(st.list);
+  /* 取列表期间被切换 / 清空：这句话还没发出去，直接放弃，绝不能按新设置改投别人 */
+  if (epoch !== chatEpoch) return cancelledChat(null);
+  const target = wantAtStart ? dshSessionOf(st.list, wantAtStart) : (st.list[0] || null);
   if (!target) {
-    if (hasPinnedDshSession()) throw dshSessionLostError();
+    if (wantAtStart) throw dshSessionLostError();
     throw httpError(400, 'DSH 里没有可对话的会话：先在 DSH 里建一个会话，或在「设置 → 对话」里选目标会话。');
   }
   pinDshSession(target);
@@ -2070,6 +2086,9 @@ async function chatViaDsh(text) {
     if (evs.length) cursor = Number(evs[evs.length - 1].seq) || 0;
   } catch (e) { /* 老会话没有历史也能发 */ }
 
+  /* 读历史期间被切换：发出去之前的最后一道闸，宁可这条不发也不投错人 */
+  if (epoch !== chatEpoch) return cancelledChat(target);
+
   const requestId = 'fw-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   await dshCall('/send', { method: 'POST', body: { sessionId: target.id, text, requestId } }, 25000);
 
@@ -2078,17 +2097,19 @@ async function chatViaDsh(text) {
   let last = '';
   while (Date.now() < deadline) {
     await sleep(1100);
-    if (epoch !== chatEpoch) return { reply: '', sessionId: target.id, sessionTitle: target.title, done: false, cancelled: true };
+    if (epoch !== chatEpoch) return cancelledChat(target);
     let got;
     try { got = await dshCollect(target.id, cursor); }
     catch (e) { continue; }
+    /* 读回复期间被清空 / 切换：这批结果整批丢弃，不能等下一轮再判断 */
+    if (epoch !== chatEpoch) return cancelledChat(target);
     cursor = got.cursor;
     if (got.reply) last = got.reply;
     if (got.ended && last) return { reply: last, sessionId: target.id, sessionTitle: target.title, done: true };
   }
+  /* 最后一轮读到的内容同样要先确认没被作废，再决定返回还是挂起 */
+  if (epoch !== chatEpoch) return cancelledChat(target);
   if (last) return { reply: last, sessionId: target.id, sessionTitle: target.title, done: false };
-  /* 这段等待已经被清空 / 切换作废：不要重新挂起，否则会把过期回复塞回新对话 */
-  if (epoch !== chatEpoch) return { reply: '', sessionId: target.id, sessionTitle: target.title, done: false, cancelled: true };
   chatPending = { sessionId: target.id, cursor, text, at: Date.now() };
   return { reply: '', sessionId: target.id, sessionTitle: target.title, pending: true };
 }
@@ -2312,8 +2333,11 @@ function readBinaryBody(req) {
 async function handlePost(p, req, res) {
   const body = await readBody(req);
   if (p === '/api/settings') {
+    const beforeChat = (SETTINGS.chat && SETTINGS.chat.dshSessionId) || '';
     SETTINGS = saveSettings(mergeSettings(body, SETTINGS));
     cache = { at: 0, value: null };
+    /* 设置页也能改目标会话：改了就和切换一样，作废正在等待的旧请求 */
+    if (String((SETTINGS.chat && SETTINGS.chat.dshSessionId) || '') !== String(beforeChat)) resetChatPending();
     return sendJson(res, 200, { ok: true, settings: publicSettings(SETTINGS) });
   }
   if (p === '/api/schedule/generate') {

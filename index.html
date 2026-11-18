@@ -4876,7 +4876,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
       });
     }).then(function(j){
       CHAT.sending=false;if(btn)btn.disabled=false;
-      if(j.cancelled){stopThinking();return}   /* 发送期间被清空记录 / 切换目标 → 静默丢弃 */
+      if(j.cancelled){stopThinking();toast('这条没有发出：目标会话已切换或记录已清空');return}
       if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
       if(j.pending){say(who,'……（还在想，想到就说）');startChatPoll();return}
       stopThinking();
