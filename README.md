@@ -127,7 +127,14 @@ dsh plugin --profile desktop add ./dsh-plugin
 
 - **鲸鱼娘素材**：来自 [AATINF/deepseek-whale-girl-assets](https://github.com/AATINF/deepseek-whale-girl-assets)（二创扩展包，AI 生成），已抠成透明底 PNG 存于 `assets/whale/`（无损母版 WebP 备份在 `assets/whale-src/`，不随程序发布）。角色参考 [TreapGoGo/deepseek-whale-girl](https://github.com/TreapGoGo/deepseek-whale-girl)（MIT License, Copyright (c) 2026 TreapGoGo）。再分发请保留此署名，并如实标注使用了生成式 AI 辅助。
 - **场景背景图**：`assets/bg/` 下 14 个场景 × 3 时段（白天 / 傍晚 / 夜晚）共 84 张背景图（自宅 / 学校 / 教室 / 上学路 / 街道 / 餐厅 / 神社 / 澡堂 / 医院 / 山里等），均为**生成式 AI 绘制**的二次元场景，已转为 JPG 并生成 `-t` 缩略图。每张由 AI 生成、无第三方版权素材；场景清单见 `scenes.json`。
-- **背景音乐（BGM）**：`assets/audio/bgm/` 下的音乐为**原创程序化合成**（和弦进行 + 分解琶音 + 低音 + pad + 卷积混响，按早晨/白天/黄昏/夜晚/温暖/忧伤配不同调式与节奏），不采样、不引用任何现有曲目旋律，可自由再分发。生成脚本见仓库根目录 `gen_bgm.py`。
+- **背景音乐（BGM）**：`assets/audio/bgm/` 下 12 首音乐为**原创程序化合成**，不采样、不引用任何现有曲目旋律，可自由再分发。每首拥有独立的音色、节奏型、织体与和声语言，风格各异：
+  - 清晨：晨光音乐盒（音乐盒 + 风铃）、晨露拨弦（拨弦 + 长笛）
+  - 白天：晴天钢琴流行（柱式和弦 + 琶音 + 轻打击）、午后明亮拨弦（切分 + 马林巴）、日光竖琴琶音（十六分流动）
+  - 黄昏：黄昏爵士（七和弦电钢 + walking bass + swing 刷镲）、晚霞弦乐（弦乐长音 + 稀疏钢琴）
+  - 夜晚：夜空氛围（极简铺底 + 风铃 + 大混响）、月夜夜曲（低音分解 + 装饰旋律）
+  - 其他：8-bit 俏皮（方波旋律 + 快节奏，菜单用）、温暖电钢（柔和七和弦 + 拨弦 + 长笛）、忧伤慢板（慢速钢琴 + 弦乐长音）
+  
+  生成脚本见仓库根目录 `gen_bgm.py`（`python gen_bgm.py --all --dir <目录>`），可在「设置 → 音乐选择」里试听并自选。
 - **环境音 / 音效**：`assets/audio/amb/`、`assets/audio/sfx/` 由本地噪声合成，无第三方版权问题。
 - **其他角色立绘**：未随本仓库提供；如需自行导入，请遵守对应原作者的授权，勿违规再分发。
 
