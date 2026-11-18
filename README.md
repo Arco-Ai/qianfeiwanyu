@@ -28,7 +28,7 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载最新的 `qianfeiwanyu-v1.0.1-win-x64.zip`（约 245 MB）。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases/latest) 下载最新的 `qianfeiwanyu-v1.0.2-win-x64.zip`（约 277 MB）。
 2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
