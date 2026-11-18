@@ -28,10 +28,12 @@
 
 ### 方式 A：独立桌面版（推荐，零依赖）
 
-1. 进入 `dist/千肥万鱼/` 文件夹。
-2. 双击 `千肥万鱼.exe`。
+1. 到本仓库 [Releases 页面](https://github.com/Arco-Ai/qianfeiwanyu/releases) 下载 `qianfeiwanyu-v1.0.0-win-x64.zip`（约 244 MB）。
+2. 解压后进入 `千肥万鱼/` 文件夹，双击 `千肥万鱼.exe`。
 
 不需要安装 Node.js、不需要浏览器、不需要 `npm install`。整个 `千肥万鱼` 文件夹可以拷到任何 Windows 电脑上直接用。
+
+> 仓库源码本身不含打包产物（`.gitignore` 已忽略 `dist/`）；独立 exe 统一在 Releases 提供。想自己打包时，先 `npm install`，再执行 `node desktop/build-portable.js`。
 
 ### 方式 B：源码模式（需要 Node.js 18+）
 
