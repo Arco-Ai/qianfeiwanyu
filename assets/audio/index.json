@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "音频资源清单。BGM 提取自《亚托莉 -我的挚爱时光-》APK 的 data.xp3；环境音与音效由噪声合成。仅供千肥万鱼本地使用。",
+  "note": "音频资源清单。BGM 为原创程序化合成的治愈系音乐（和弦进行 + 分解琶音 + 低音 + pad + 混响），可自由再分发；环境音与音效由噪声合成。不联网、无第三方版权素材。",
   "bgm": {
     "morning": ["audio/bgm/morning1.ogg", "audio/bgm/morning2.ogg"],
     "day": ["audio/bgm/day1.ogg", "audio/bgm/day2.ogg", "audio/bgm/day3.ogg"],

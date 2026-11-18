@@ -141,7 +141,7 @@
     enabled: true
     assetDir: assets/audio
     manifest: assets/audio/index.json
-    bgm:                          # BGM 提取自本机《亚托莉 -我的挚爱时光-》APK 的 data.xp3
+    bgm:                          # 原创程序化合成的治愈系音乐，无第三方版权素材
       enabled: true
       volume: 35
       bySlot: [morning, day, dusk, night]
