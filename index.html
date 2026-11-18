@@ -1314,6 +1314,30 @@ body.game-mode #gameFlag{display:inline-flex!important}
             <div class="field"><label>界面音效</label><input type="checkbox" id="audioSfxOn" style="accent-color:var(--accent)"><span class="unit">点击 / 收藏 / 选择提示音</span></div>
             <div class="field"><label>音效音量 <span id="volSfxVal">50%</span></label><input type="range" id="volSfx" min="0" max="100" value="50"><span class="unit"><button class="mbtn" id="btnTestVolSfx" style="padding:2px 10px">试听</button></span></div>
           </div>
+
+          <div class="mgroup">
+            <h3>音乐选择</h3>
+            <p class="desc">内置曲目为原创程序化合成。可固定循环某一首、勾选多首随机轮换，或上传你自己的本地音乐。上传的音频只保存在本机 <code>assets/audio/bgm/</code>，不会联网；也随时可以删除。选好后即时生效、自动记住。</p>
+            <div class="field"><label>播放方式</label>
+              <select id="bgmMode">
+                <option value="auto">按时段 / 场景自动切换（默认）</option>
+                <option value="single">固定单曲循环</option>
+                <option value="rotate">多首随机轮换</option>
+              </select>
+            </div>
+            <div class="field" id="bgmSingleWrap" style="display:none"><label>固定曲目</label><select id="bgmSingle"></select></div>
+            <div id="bgmRotateWrap" style="display:none">
+              <label>轮换曲目（勾选多首）</label>
+              <div id="bgmRotateList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px"></div>
+            </div>
+            <div class="mrow" style="align-items:flex-start">
+              <label class="mbtn primary" for="fileBgm" style="cursor:pointer">选择本地音乐</label>
+              <input type="file" id="fileBgm" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/x-m4a,audio/flac,.mp3,.ogg,.wav,.m4a,.flac" style="display:none">
+              <button class="mbtn" id="btnUploadBgm">上传并加入曲库</button>
+            </div>
+            <p class="desc" id="bgmUploadStatus" style="margin:8px 0 0">支持 MP3 / OGG / WAV / M4A / FLAC，单个不超过 12 MB。</p>
+            <div class="field" style="display:block"><label>我的上传</label><div id="bgmCustomList" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+          </div>
         </section>
 
         <section class="msection hidden" id="tab-persona">
@@ -1737,18 +1761,18 @@ body.game-mode #gameFlag{display:inline-flex!important}
   /* 全身立绘版映射：只用 933×1400 竖长全身图，取景与亚托莉一致（头顶贴边、只露上半身居中）。
      不同语义落到不同姿态/角度的全身图：挥手/跳跃/抱膝/叉腰/背面等，兼顾心情与对话反应。 */
   var WHALE_FACE_MATURE={
-    idle:'P1',smile:'C22',laugh:'C93',cheer:'C93',talk:'C03',serious:'C03',content:'C26',gentle:'C26',
-    surprise:'C01',wonder:'C01',happy:'C24',shy:'P4',blush:'P4',blush2:'P4',wink:'C22',
-    worried:'C03',sad:'P4',down:'P4',sleepy:'P4',pout:'C02',shock:'C01',calm:'P1',wave:'C24'
+    idle:'C_平静',smile:'C_微笑',laugh:'C_大笑',cheer:'C_大笑',talk:'C_说话',serious:'C_说话',content:'C_眯眼笑',gentle:'C_眯眼笑',
+    surprise:'C_说话',wonder:'C_说话',happy:'C_开心',shy:'C_害羞',blush:'C_害羞',blush2:'C_害羞',wink:'C_微笑',
+    worried:'C_说话',sad:'C_害羞',down:'C_害羞',sleepy:'C_害羞',pout:'C_微笑',shock:'C_说话',calm:'C_平静',wave:'C_开心'
   };
   var WHALE_FACE_CHIBI={
-    idle:'C12',smile:'C21',laugh:'C90',cheer:'C90',talk:'C07',serious:'C05',content:'C25',gentle:'C25',
-    surprise:'C05',wonder:'C05',happy:'C23',shy:'C27',blush:'C27',blush2:'C27',wink:'C21',
-    worried:'C05',sad:'C27',down:'C27',sleepy:'C27',pout:'C06',shock:'C05',calm:'C12',wave:'C23'
+    idle:'Q_平静',smile:'Q_微笑',laugh:'Q_大笑',cheer:'Q_大笑',talk:'Q_说话',serious:'Q_认真',content:'Q_眯眼笑',gentle:'Q_眯眼笑',
+    surprise:'Q_认真',wonder:'Q_认真',happy:'Q_开心',shy:'Q_害羞',blush:'Q_害羞',blush2:'Q_害羞',wink:'Q_微笑',
+    worried:'Q_认真',sad:'Q_害羞',down:'Q_害羞',sleepy:'Q_害羞',pout:'Q_生气',shock:'Q_认真',calm:'Q_平静',wave:'Q_开心'
   };
   var FORM_DEF={
-    'whale-mature':{label:'成熟鲸鱼娘',faces:WHALE_FACE_MATURE,bust:'whale/C83.png',bg:'whale-bg-mature'},
-    'whale-chibi':{label:'Q版鲸鱼娘',faces:WHALE_FACE_CHIBI,bust:'whale/C10.png',bg:'whale-bg-chibi'}
+    'whale-mature':{label:'成熟鲸鱼娘',faces:WHALE_FACE_MATURE,bust:'whale/C_半身像.png',bg:'whale-bg-mature'},
+    'whale-chibi':{label:'Q版鲸鱼娘',faces:WHALE_FACE_CHIBI,bust:'whale/Q_半身像.png',bg:'whale-bg-chibi'}
   };
   function activeForm(){
     var f=(ASSETS&&ASSETS.config&&ASSETS.config.form)||'whale-mature';
@@ -2171,7 +2195,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   var DEST_KEY='fishwatch.gal.dest';
   var PLAY_DEF={audioBgm:true,bgmVol:35,audioAmb:true,ambVol:25,audioSfx:true,sfxVol:50,
                 fx:true,fxStyle:'fade',dest:true,birthday:'',city:'',live:false,weather:null,weatherAt:0,
-                replyOpts:true,atriExprOn:true,atriReactOn:true,atriDefaultFace:'',
+                replyOpts:true,atriExprOn:true,atriReactOn:true,atriDefaultFace:'',bgmMode:'auto',bgmSingle:'',bgmRotate:[],
                 touchOn:true,chapterOn:true,thinkOn:true,gameMode:false,dshBridge:true};
   /* ATRI 表情差分的中文名（用于「默认表情」下拉与预览） */
   var ATRI_FACE_LABEL={idle:'平静',smile:'微笑',laugh:'大笑',talk:'说话',serious:'认真',content:'眯眼笑',gentle:'温柔',
@@ -2181,6 +2205,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   var COLL_DEF={cg:{},quotes:[]};
   var PLAY=readJSON(PLAY_KEY,PLAY_DEF), BOND=readJSON(BOND_KEY,BOND_DEF), COLL=readJSON(COLL_KEY,COLL_DEF);
   var AUDIO_IDX=null, bgmAudio=null, ambAudio=null, bgmKey='', ambKey='', userBgmOff=false, AUDIO_FALLBACK='';
+  var BGM_ALL=[], BGM_ROTATE_AT=0;
   var DEST_TODAY=readJSON(DEST_KEY,{}), lastSlotForDest='', weatherTimer=0;
 
   function readJSON(k,def){try{var v=JSON.parse(localStorage.getItem(k));if(v&&typeof v==='object')return Object.assign({},def,v)}catch(e){}return Object.assign({},def)}
@@ -2619,14 +2644,22 @@ body.game-mode #gameFlag{display:inline-flex!important}
     list=list.concat(b[slot]||[],b.day||[]);
     return list.filter(function(x,i,a){return a.indexOf(x)===i});
   }
+  function bgmFileExists(f){return !!(f&&BGM_ALL.indexOf(f)>=0)}
   function playBgm(slot,mood){
     if(gameModeOn())return;
     if(!PLAY.audioBgm||userBgmOff)return;
-    var list=bgmListFor(slot,mood);
+    var mode=PLAY.bgmMode||'auto', list=[], file='';
+    if(mode==='single'){
+      if(bgmFileExists(PLAY.bgmSingle))list=[PLAY.bgmSingle];
+    }else if(mode==='rotate'){
+      var custom=(PLAY.bgmRotate||[]).filter(bgmFileExists);
+      if(custom.length)list=custom;
+    }
+    if(!list.length)list=bgmListFor(slot,mood);
     if(!list.length&&AUDIO_FALLBACK)list=[String(AUDIO_FALLBACK).replace(/^bg\//,'audio/bgm/')];
     if(!list.length)return;
-    var seed=(todayKey()+slot+(mood||'')).length+String(BOND.favor||0).length;
-    var file=list[seed%list.length];
+    if(mode==='rotate'&&list.length>1){file=list[BGM_ROTATE_AT%list.length];BGM_ROTATE_AT++}
+    else{var seed=(todayKey()+slot+(mood||'')).length+String(BOND.favor||0).length;file=list[seed%list.length]}
     if(file===bgmKey&&bgmAudio&&!bgmAudio.paused)return;
     bgmKey=file;
     if(!bgmAudio){bgmAudio=new Audio();bgmAudio.loop=true;}
@@ -2663,7 +2696,74 @@ body.game-mode #gameFlag{display:inline-flex!important}
     syncBgmBtn();
   }
   function loadAudioIndex(){
-    return fetch('/api/audio/index',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){AUDIO_IDX=d;return d}).catch(function(){});
+    return fetch('/api/audio/index',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+      AUDIO_IDX=d;
+      var set={};
+      var b=d.bgm||{};
+      Object.keys(b).forEach(function(k){(b[k]||[]).forEach(function(f){set[f]=1})});
+      BGM_ALL=Object.keys(set);
+      try{renderBgmPicker()}catch(e){}
+      return d;
+    }).catch(function(){});
+  }
+  function bgmLabel(f){
+    if(/^audio\/bgm\/upload_/.test(f))return '我的上传 · '+f.split('/').pop().replace(/^upload_[^_]+_[^_]+_?/,'').slice(0,18);
+    var name=f.split('/').pop().replace(/\.(ogg|mp3|wav|m4a|flac)$/i,'');
+    var MAP={morning1:'清晨一',morning2:'清晨二',day1:'白天一',day2:'白天二',day3:'白天三',dusk1:'傍晚一',dusk2:'傍晚二',night1:'夜晚一',night2:'夜晚二',warm:'温暖',sad:'忧伤',menu:'菜单'};
+    return MAP[name]||name;
+  }
+  function renderBgmPicker(){
+    var sel=$('bgmSingle');
+    if(sel){
+      var cur=PLAY.bgmSingle||'';
+      sel.innerHTML='<option value="">— 选择一首 —</option>';
+      BGM_ALL.forEach(function(f){var o=document.createElement('option');o.value=f;o.textContent=bgmLabel(f);sel.appendChild(o)});
+      sel.value=(BGM_ALL.indexOf(cur)>=0)?cur:'';
+    }
+    var box=$('bgmRotateList');
+    if(box){
+      box.innerHTML='';
+      var chosen=PLAY.bgmRotate||[];
+      BGM_ALL.forEach(function(f){
+        var lab=document.createElement('label');lab.style.cssText='font-size:11px;display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid rgba(150,192,224,.42);border-radius:12px;cursor:pointer';
+        var cb=document.createElement('input');cb.type='checkbox';cb.checked=chosen.indexOf(f)>=0;cb.dataset.bgm=f;cb.style.accentColor='var(--accent)';
+        cb.onchange=function(){
+          var arr=(PLAY.bgmRotate||[]).filter(function(x){return x!==f});
+          if(this.checked)arr.push(f);
+          PLAY.bgmRotate=arr;savePlay();BGM_ROTATE_AT=0;
+          if((PLAY.bgmMode||'auto')==='rotate'&&this.checked){userBgmOff=false;playBgm(slotActive(),portraitKey())}
+        };
+        lab.appendChild(cb);lab.appendChild(document.createTextNode(bgmLabel(f)));box.appendChild(lab);
+      });
+    }
+    var cl=$('bgmCustomList');
+    if(cl){
+      cl.innerHTML='';
+      var customs=BGM_ALL.filter(function(f){return /^audio\/bgm\/upload_/.test(f)});
+      if(!customs.length){cl.innerHTML='<span class="note">还没有上传音乐</span>'}
+      customs.forEach(function(f){
+        var chip=document.createElement('span');chip.className='chip';chip.textContent=bgmLabel(f);
+        var del=document.createElement('button');del.className='mbtn danger';del.textContent='×';del.style.cssText='padding:0 6px;margin-left:5px';
+        del.onclick=function(){
+          if(window.confirm&&!window.confirm('删除 '+bgmLabel(f)+' ？'))return;
+          fetch('/api/bgm/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:f})})
+          .then(function(r){return r.json()}).then(function(d){
+            if(!d.ok)throw new Error(d.error||'删除失败');
+            PLAY.bgmRotate=(PLAY.bgmRotate||[]).filter(function(x){return x!==f});
+            if(PLAY.bgmSingle===f)PLAY.bgmSingle='';
+            savePlay();loadAudioIndex().then(function(){applyAudioState()});toast('已删除上传音乐');
+          }).catch(function(e){toast('删除失败：'+e.message)});
+        };
+        chip.appendChild(del);cl.appendChild(chip);
+      });
+    }
+    syncBgmModeUI();
+  }
+  function syncBgmModeUI(){
+    var mode=PLAY.bgmMode||'auto';
+    if($('bgmMode'))$('bgmMode').value=mode;
+    if($('bgmSingleWrap'))$('bgmSingleWrap').style.display=(mode==='single')?'':'none';
+    if($('bgmRotateWrap'))$('bgmRotateWrap').style.display=(mode==='rotate')?'':'none';
   }
 
   /* ---------- 日程选择：下一步去哪里 ---------- */
@@ -3644,6 +3744,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     if($('schAutoGenerate'))$('schAutoGenerate').checked=sd.autoGenerate!==false;
     if($('playDest'))$('playDest').checked=!!PLAY.dest;
     if($('audioBgmOn'))$('audioBgmOn').checked=!!PLAY.audioBgm;
+    try{syncBgmModeUI()}catch(e){}
     if($('audioAmbOn'))$('audioAmbOn').checked=!!PLAY.audioAmb;
     if($('audioSfxOn'))$('audioSfxOn').checked=!!PLAY.audioSfx;
     /* 音量总览页与快捷音量条共享同一份数据，打开设置时一起刷新 */
@@ -3795,12 +3896,10 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
   /* 内置立绘库：鲸鱼娘 PNG，点缩略图即设为「平静」立绘 */
   var BUILTIN_LABEL={
-    P1:'成熟·站姿',P2:'Q版·开心',P3:'成熟·挥手',P4:'成熟·抱膝',
-    C01:'成熟·侧身',C02:'成熟·背面',C03:'成熟·半侧',C04:'Q版·站姿',C05:'Q版·侧身',C06:'Q版·背面',C07:'Q版·半侧',
-    C10:'Q版·大笑',C11:'成熟·大笑',C12:'Q版·微笑',C13:'成熟·微笑',C14:'成熟·害羞',
-    C21:'Q版·叉腰',C22:'成熟·叉腰',C23:'Q版·挥手',C24:'成熟·挥手',C25:'Q版·合十',C26:'成熟·合十',C27:'Q版·抱膝',
-    C48:'成熟·半身',C49:'Q版·半身',C83:'成熟·胸像',C84:'Q版·胸像',
-    C90:'Q版·奔跑',C91:'成熟·奔跑',C92:'Q版·跳跃',C93:'成熟·跳跃'
+    'C_平静':'成熟·平静','Q_平静':'Q版·平静','C_微笑':'成熟·微笑','Q_微笑':'Q版·微笑',
+    'C_大笑':'成熟·大笑','Q_大笑':'Q版·大笑','C_说话':'成熟·说话','Q_说话':'Q版·说话',
+    'Q_认真':'Q版·认真','C_眯眼笑':'成熟·眯眼笑','Q_眯眼笑':'Q版·眯眼笑','C_开心':'成熟·开心','Q_开心':'Q版·开心',
+    'C_害羞':'成熟·害羞','Q_害羞':'Q版·害羞','Q_生气':'Q版·生气'
   };
   function builtinLabel(f){
     var m=/^whale\/(.+)\.png$/.exec(f);
@@ -3809,7 +3908,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
   function renderBuiltinPortraits(a,cur){
     var box=$('builtinGrid');if(!box)return;
-    var all=(a.files||[]).filter(function(f){return /^whale\/.*\.png$/.test(f)});
+    var all=(a.files||[]).filter(function(f){return /^whale\/.*\.png$/.test(f) && !/(半身|胸像|壁纸)/.test(f)});
     /* 排序：按文件名稳定排 */
     all.sort(function(x,y){
       return x.localeCompare(y,undefined,{numeric:true});
@@ -5225,6 +5324,37 @@ body.game-mode #gameFlag{display:inline-flex!important}
       if(userBgmOff){userBgmOff=false;playBgm(slotActive(),portraitKey())}
       else{userBgmOff=true;if(bgmAudio)bgmAudio.pause();syncBgmBtn()}
     };
+    /* 音乐选择栏 */
+    if($('bgmMode'))$('bgmMode').onchange=function(){
+      PLAY.bgmMode=this.value;savePlay();syncBgmModeUI();
+      userBgmOff=false;BGM_ROTATE_AT=0;
+      if(bgmAudio)bgmAudio.pause();bgmKey='';
+      if(PLAY.audioBgm)playBgm(slotActive(),portraitKey());else syncBgmBtn();
+    };
+    if($('bgmSingle'))$('bgmSingle').onchange=function(){
+      PLAY.bgmSingle=this.value;savePlay();
+      if((PLAY.bgmMode||'auto')==='single'){userBgmOff=false;bgmKey='';if(bgmAudio)bgmAudio.pause();playBgm(slotActive(),portraitKey())}
+    };
+    if($('btnUploadBgm'))$('btnUploadBgm').onclick=function(){
+      var f=$('fileBgm')&&$('fileBgm').files&&$('fileBgm').files[0];
+      var st=$('bgmUploadStatus');
+      if(!f){if(st)st.textContent='请先选择一个音频文件';return}
+      if(f.size>12*1024*1024){if(st)st.textContent='音频超过 12 MB';return}
+      if(st)st.textContent='正在上传 '+f.name+' …';
+      var fr=new FileReader();
+      fr.onload=function(){
+        fetch('/api/bgm/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:fr.result})})
+        .then(function(r){return r.json()}).then(function(d){
+          if(!d.ok)throw new Error(d.error||'上传失败');
+          if(st)st.textContent='已上传 '+bgmLabel(d.file)+'（'+fmtBytes(d.bytes)+'）';
+          if($('fileBgm'))$('fileBgm').value='';
+          return loadAudioIndex();
+        }).then(function(){toast('音乐已加入曲库')}).catch(function(e){if(st)st.textContent='上传失败：'+e.message});
+      };
+      fr.onerror=function(){if(st)st.textContent='读取文件失败'};
+      fr.readAsDataURL(f);
+    };
+    try{renderBgmPicker()}catch(e){}
   }
   bindPlay();
   $('btnResetNames').onclick=function(){$('setPetName').value='';$('setCharName').value='';$('setOwnerName').value='';$('setChatName').value='';saveSettings()};

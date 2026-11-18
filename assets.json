@@ -16,9 +16,9 @@
     "night": ""
   },
   "portrait": {
-    "idle": "whale/P1.png",
-    "happy": "whale/C93.png",
-    "sad": "whale/P4.png",
+    "idle": "whale/C_备用12.png",
+    "happy": "whale/C_大笑.png",
+    "sad": "whale/C_害羞.png",
     "avatar": ""
   },
   "portrait2": {

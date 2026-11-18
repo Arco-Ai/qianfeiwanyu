@@ -177,7 +177,7 @@ function mergeSettings(body, cur) {
   const cy = c.diary || DEFAULT_SETTINGS.diary;
 
   let portrait = str(b.portrait, 160, c.portrait || '');
-  if (portrait && !/^(?:uploads\/)?[A-Za-z0-9._-]+$/.test(portrait)) portrait = '';
+  if (portrait && !/^(?:uploads\/)?[\u4e00-\u9fa5A-Za-z0-9._-]+$/.test(portrait)) portrait = '';
 
   const s = {
     petName: str(b.petName, 64, c.petName || ''),
@@ -846,7 +846,7 @@ function loadAssets() {
     // 鲸鱼娘形态下是否沿用亚托莉场景库背景：默认否（用鲸鱼娘场景/壁纸）
     whaleBgFromAtri: !!a.whaleBgFromAtri,
     // 鲸鱼娘横版壁纸钉住项（C70..C77 的编号），空表示按时段用氛围场景
-    whaleWallpaper: /^C(?:70|71|72|73|74|75|76|77)$/.test(String(a.whaleWallpaper || '')) ? String(a.whaleWallpaper) : '',
+    whaleWallpaper: /^C_壁纸0[1-4]$/.test(String(a.whaleWallpaper || '')) ? String(a.whaleWallpaper) : '',
   };
   // 槽位分配以 assets.json 为唯一真源；settings.portrait 仅作为旧接口的兼容字段保留。
   return out;
@@ -1418,22 +1418,22 @@ function scheduleNow() {
 
 // 槽位可指向素材库里实际存在的文件：根目录散图、上传图、以及内置鲸鱼娘/亚托莉目录。
 // 注意必须与 listAssets() 能列举的前缀一致，否则内置立绘会被误判为「名称不合法」而设置失败。
-const ASSET_NAME = /^(?:(?:uploads|atri|whale)\/)?[A-Za-z0-9._-]+$/;
+const ASSET_NAME = /^(?:(?:uploads|atri|whale)\/)?[\u4e00-\u9fa5A-Za-z0-9._-]+$/;
 // 只读 UI 素材允许从 assets/ui/ 提供；场景背景库从 assets/bg/ 提供。两者都不进素材库列表。
-const SERVE_NAME = /^(?:(?:uploads|ui|bg|audio|atri|whale)\/)?[A-Za-z0-9._-]+$/;
+const SERVE_NAME = /^(?:(?:uploads|ui|bg|audio|atri|whale)\/)?[\u4e00-\u9fa5A-Za-z0-9._-]+$/;
 /* 音频子目录（audio/bgm|amb|sfx）需要两级路径，单独放宽到两级且仅限 audio 白名单 */
 const SERVE_AUDIO_NAME = /^audio\/(?:bgm|amb|sfx)\/[A-Za-z0-9._-]+$/;
 function listAssets() {
   const out = [];
   try {
     for (const f of fs.readdirSync(ASSETS_DIR)) {
-      if (!/^[A-Za-z0-9._-]+$/.test(f)) continue;
+      if (!/^[\u4e00-\u9fa5A-Za-z0-9._-]+$/.test(f)) continue;
       if (fs.statSync(path.join(ASSETS_DIR, f)).isFile()) out.push(f);
     }
   } catch (e) { /* 目录不存在 */ }
   try {
     for (const f of fs.readdirSync(UPLOADS_DIR)) {
-      if (!/^[A-Za-z0-9._-]+$/.test(f)) continue;
+      if (!/^[\u4e00-\u9fa5A-Za-z0-9._-]+$/.test(f)) continue;
       if (fs.statSync(path.join(UPLOADS_DIR, f)).isFile()) out.push('uploads/' + f);
     }
   } catch (e) { /* 目录不存在 */ }
@@ -1441,7 +1441,7 @@ function listAssets() {
   try {
     const atriDir = path.join(ASSETS_DIR, 'atri');
     for (const f of fs.readdirSync(atriDir)) {
-      if (!/^[A-Za-z0-9._-]+$/.test(f)) continue;
+      if (!/^[\u4e00-\u9fa5A-Za-z0-9._-]+$/.test(f)) continue;
       if (fs.statSync(path.join(atriDir, f)).isFile()) out.push('atri/' + f);
     }
   } catch (e) { /* 目录不存在 */ }
@@ -1449,7 +1449,7 @@ function listAssets() {
   try {
     const whaleDir = path.join(ASSETS_DIR, 'whale');
     for (const f of fs.readdirSync(whaleDir)) {
-      if (!/^[A-Za-z0-9._-]+$/.test(f)) continue;
+      if (!/^[\u4e00-\u9fa5A-Za-z0-9._-]+$/.test(f)) continue;
       if (fs.statSync(path.join(whaleDir, f)).isFile()) out.push('whale/' + f);
     }
   } catch (e) { /* 目录不存在 */ }
@@ -1498,6 +1498,55 @@ function decodeDataUrl(data) {
   if (!buf.length) throw httpError(400, '图片内容为空');
   if (buf.length > MAX_UPLOAD_BYTES) throw httpError(413, '图片超过 12 MB 上限');
   return buf;
+}
+
+/* ---------- 自定义 BGM 上传 ---------- */
+function audioExt(buf) {
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'OggS') return 'ogg';
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xfb) return 'mp3';
+  if (buf.length >= 3 && buf.toString('ascii', 0, 3) === 'ID3') return 'mp3';
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE') return 'wav';
+  if (buf.length >= 4 && buf.toString('ascii', 4, 8) === 'ftyp') return 'm4a';
+  if (buf.length >= 4 && buf.toString('ascii', 0, 4) === 'fLaC') return 'flac';
+  return null;
+}
+const AUDIO_IDX_FILE = localPath('assets/audio/index.json');
+function loadAudioIdxRaw() {
+  try { const j = JSON.parse(fs.readFileSync(AUDIO_IDX_FILE, 'utf8')); return j && typeof j === 'object' ? j : {}; }
+  catch (e) { return {}; }
+}
+function saveAudioIdxRaw(j) { fs.writeFileSync(AUDIO_IDX_FILE, JSON.stringify(j, null, 2) + '\n', 'utf8'); }
+function saveCustomBgm(dataUrl) {
+  const m = /^data:audio\/(?:mpeg|mp3|ogg|wav|mp4|x-m4a|flac|webm);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(dataUrl || ''));
+  if (!m) throw httpError(400, '请上传有效的音频文件（MP3 / OGG / WAV / M4A / FLAC）');
+  const buf = Buffer.from(m[1].replace(/\s/g, ''), 'base64');
+  if (!buf.length) throw httpError(400, '音频内容为空');
+  if (buf.length > MAX_UPLOAD_BYTES) throw httpError(413, '音频超过 12 MB 上限');
+  const ext = audioExt(buf);
+  if (!ext) throw httpError(400, '无法识别的音频格式，支持 MP3 / OGG / WAV / M4A / FLAC');
+  const name = 'upload_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+  fs.mkdirSync(localPath('assets/audio/bgm'), { recursive: true });
+  fs.writeFileSync(localPath('assets/audio/bgm/' + name), buf);
+  const rel = 'audio/bgm/' + name;
+  const j = loadAudioIdxRaw();
+  if (!j.bgm || typeof j.bgm !== 'object') j.bgm = {};
+  if (!Array.isArray(j.bgm.custom)) j.bgm.custom = [];
+  if (j.bgm.custom.indexOf(rel) < 0) j.bgm.custom.push(rel);
+  saveAudioIdxRaw(j);
+  return { ok: true, file: rel, bytes: buf.length };
+}
+function deleteCustomBgm(file) {
+  file = String(file || '');
+  if (!/^audio\/bgm\/upload_[A-Za-z0-9._-]+$/.test(file)) throw httpError(400, '只能删除自己上传的 BGM');
+  const p = path.resolve(ASSETS_DIR, file);
+  if (!p.startsWith(ASSETS_DIR + path.sep)) throw httpError(400, '非法路径');
+  try { fs.unlinkSync(p); } catch (e) { /* 已不存在 */ }
+  const j = loadAudioIdxRaw();
+  if (j.bgm && Array.isArray(j.bgm.custom)) {
+    j.bgm.custom = j.bgm.custom.filter((x) => x !== file);
+    saveAudioIdxRaw(j);
+  }
+  return { ok: true, removed: file };
 }
 
 /* ---------- 素材槽位：上传时指派 / 已有文件指派 / 删除上传文件 ---------- */
@@ -2260,6 +2309,12 @@ async function handlePost(p, req, res) {
     const removed = clearFishDay(key);
     return sendJson(res, 200, { ok: true, removed: removed, schedule: scheduleNow() });
   }
+  if (p === '/api/bgm/upload') {
+    return sendJson(res, 200, saveCustomBgm(body.data));
+  }
+  if (p === '/api/bgm/delete') {
+    return sendJson(res, 200, deleteCustomBgm(body.file));
+  }
   if (p === '/api/upload' || p === '/api/assets/upload') {
     let slot = typeof body.slot === 'string' && body.slot ? body.slot : '';
     if (!slot) slot = body.setAsPortrait === false ? '__library__' : 'portrait.idle';
@@ -2279,7 +2334,7 @@ async function handlePost(p, req, res) {
     if (body.whaleBgFromAtri != null) raw.whaleBgFromAtri = !!body.whaleBgFromAtri;
     if (body.whaleWallpaper != null) {
       const wp = String(body.whaleWallpaper);
-      raw.whaleWallpaper = /^C(?:70|71|72|73|74|75|76|77)$/.test(wp) ? wp : '';
+      raw.whaleWallpaper = /^C_壁纸0[1-4]$/.test(wp) ? wp : '';
     }
     saveAssetsRaw(raw);
     return sendJson(res, 200, Object.assign({ ok: true }, assetsPayload()));
