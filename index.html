@@ -4689,7 +4689,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
 
   /* ---------- 对话：输入 → DSH 会话 → 回到下方对话框 ---------- */
-  var CHAT={open:false,state:null,sending:false,pollTimer:0,target:'',pending:false};
+  var CHAT={open:false,state:null,sending:false,pollTimer:0,target:'',pending:false,pollGen:0};
 
   /* 对话记录里「你那一行」显示的名字：优先独立的 chatName，没填才回退到「她怎么称呼你」 */
   function chatOwnerName(){return (SETTINGS&&SETTINGS.chatName)||(SETTINGS&&SETTINGS.ownerName)||(S&&S.identity&&S.identity.owner)||'我'}
@@ -4943,7 +4943,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
     replyOptsTimer=setTimeout(hideReplyOptions,45000); /* 久不理会自动收起，别一直挡画面 */
   }
   function chooseReplyOption(text, hit){
-    if(!text||CHAT.sending)return;
+    if(!text||CHAT.sending||CHAT.pending)return;
     hideReplyOptions();
     if(hit)goToScene(hit,{quiet:true,muteMs:20000}); /* 直接切场景：不额外说台词，静默场景卡 20 秒 */
     sendChatText(text);
@@ -4959,6 +4959,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
 
   function sendChat(){
     if(CHAT.sending)return;
+    if(CHAT.pending){toast('上一条还在等 DSH 收尾，等它说完再发');return}
     var ta=$('chatInput');
     var text=String((ta&&ta.value)||'').trim();
     if(!text){if(ta)ta.focus();return}
@@ -4968,6 +4969,7 @@ body.game-mode #gameFlag{display:inline-flex!important}
   function sendChatText(text){
     text=String(text||'').trim();
     if(!text||CHAT.sending)return;
+    if(CHAT.pending){toast('上一条还在等 DSH 收尾，等它说完再发');return}
     if(!CHAT.target){toast('先在上面选一个 DSH 会话');return}
     hideReplyOptions();
     CHAT.sending=true;
@@ -5018,32 +5020,48 @@ body.game-mode #gameFlag{display:inline-flex!important}
   }
   function cancelChatPoll(){
     if(CHAT.pollTimer){clearTimeout(CHAT.pollTimer);CHAT.pollTimer=0}
+    CHAT.pollGen++;   /* 让还在飞的那次轮询作废，返回后不再改状态、不再续定时器 */
     CHAT.pending=false;
     stopThinking();
   }
   function startChatPoll(){
     if(CHAT.pollTimer)return;
     CHAT.pending=true;
+    if(gameModeOn())return;   /* 游戏模式不拉后台请求；退出游戏模式时按 pending 恢复 */
+    var gen=++CHAT.pollGen;
     var who=shortName()||'亚托莉',started=Date.now(),tries=0,favorGiven=false;
+    /* 所有「下一次」都必须过这里：模式切换后不再续轮询，旧一代的回调也不许再排 */
+    function schedule(ms){
+      if(gen!==CHAT.pollGen)return false;
+      if(gameModeOn()){CHAT.pollTimer=0;return false}
+      CHAT.pollTimer=setTimeout(tick,ms);
+      return true;
+    }
     function tick(){
+      if(gen!==CHAT.pollGen)return;
+      if(gameModeOn()){CHAT.pollTimer=0;return}
       if(Date.now()-started>8*60*1000){CHAT.pollTimer=0;CHAT.pending=false;stopThinking();say(who,'……好像想太久了，等下再问我一次吧');return}
       fetch('/api/chat/poll',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
         .then(function(r){return r.json()})
         .then(function(j){
+          if(gen!==CHAT.pollGen)return;   /* 清空记录 / 切换目标后，旧响应整条丢弃 */
           if(j.cancelled){CHAT.pollTimer=0;CHAT.pending=false;stopThinking();return}  /* 记录已清空 / 目标已切换 → 结束轮询 */
+          var paused=gameModeOn();        /* 已发出去的请求照常收，但游戏模式里不再加演出、不再续轮询 */
           if(j.log&&CHAT.state){CHAT.state.log=j.log;renderChatLog()}
           if(j.reply){
             stopThinking();
             if(!favorGiven){bondAdd('favor',1);favorGiven=true}
             var rawRep=j.reply||'',rep=cleanReply(rawRep)||'……';
             say(who,rep);
-            atriReact(rep);   /* 异步回话同样触发表情反应 */
-            var gotOpts=maybeOfferOptions(rep,rawRep); /* 异步回话里问了问题，同样给选项 */
-            if(!gotOpts)offerSceneIfMentioned(rep);
+            if(!paused){
+              atriReact(rep);   /* 异步回话同样触发表情反应 */
+              var gotOpts=maybeOfferOptions(rep,rawRep); /* 异步回话里问了问题，同样给选项 */
+              if(!gotOpts)offerSceneIfMentioned(rep);
+            }
             /* 中途说明也可能是最终答案；只有后端说这一轮结束了才停 */
             if(j.pending){
               CHAT.pending=true;tries=0;
-              CHAT.pollTimer=setTimeout(tick,2600);
+              schedule(2600);
               return;
             }
             CHAT.pollTimer=0;CHAT.pending=false;
@@ -5051,13 +5069,13 @@ body.game-mode #gameFlag{display:inline-flex!important}
           }
           if(!j.pending){
             CHAT.pollTimer=0;CHAT.pending=false;stopThinking();
-            if(!j.done&&!j.timedOut)say(who,'……没等到回复，可能被别的任务打断了');
+            if(!j.done&&!j.timedOut&&!paused)say(who,'……没等到回复，可能被别的任务打断了');
             return;
           }
           CHAT.pending=true;tries++;
-          CHAT.pollTimer=setTimeout(tick,Math.min(5000,2200+tries*300));
+          schedule(Math.min(5000,2200+tries*300));
         })
-        .catch(function(){tries++;CHAT.pollTimer=setTimeout(tick,4500)});
+        .catch(function(){if(gen!==CHAT.pollGen)return;tries++;schedule(4500)});
     }
     CHAT.pollTimer=setTimeout(tick,2400);
   }

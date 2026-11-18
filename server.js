@@ -905,9 +905,9 @@ const EMPTY_ASSETS = {
   audio: { bgm: '' },
 };
 function loadAssets() {
-  let a = {};
-  try { a = JSON.parse(fs.readFileSync(localPath('assets.json'), 'utf8')); }
-  catch (e) { a = {}; }
+  /* 统一走 loadAssetsRaw：坏文件（null / 数组 / 语法错误）一律当空配置，
+   * 不能让 /api/assets 之类的只读请求因为一个坏 JSON 抛异常。 */
+  const a = loadAssetsRaw();
   const out = {
     background: Object.assign({}, EMPTY_ASSETS.background, a.background),
     portrait: Object.assign({}, EMPTY_ASSETS.portrait, a.portrait),
@@ -1035,6 +1035,95 @@ const PACK_ALLOWED_EXT = /\.(?:png|jpe?g|webp|gif|ogg|mp3|m4a|wav|flac|webm|json
 function packWriteAllowed(rel) {
   if (PACK_CONFIG_FILES.indexOf(rel) >= 0) return true;
   return rel.indexOf('assets/') === 0;
+}
+/* 素材包里的配置文件先验结构再落盘：一个内容为 null 的 assets.json 能通过 CRC，
+ * 但写进去之后所有读取素材的接口都会抛异常，所以这里必须在「写任何文件之前」拦住。 */
+function isPlainObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+const PACK_CFG_GROUPS = ['background', 'portrait', 'portrait2', 'ui', 'audio'];
+const PACK_AUDIO_REF = /^audio\/(?:bgm|amb|sfx)\/[A-Za-z0-9._-]+$/;
+function validatePackConfig(name, buf) {
+  let j;
+  try { j = JSON.parse(buf.toString('utf8')); }
+  catch (e) { throw httpError(400, name + ' 不是合法 JSON，已拒绝导入，原有文件未改动'); }
+  if (!isPlainObj(j)) throw httpError(400, name + ' 的内容必须是 JSON 对象，已拒绝导入，原有文件未改动');
+
+  if (name === 'assets.json') {
+    for (const g of PACK_CFG_GROUPS) {
+      if (j[g] === undefined) continue;
+      if (!isPlainObj(j[g])) throw httpError(400, 'assets.json 的 ' + g + ' 必须是对象');
+      for (const k of Object.keys(j[g])) {
+        const v = j[g][k];
+        if (typeof v !== 'string') throw httpError(400, 'assets.json 的 ' + g + '.' + k + ' 必须是字符串');
+        /* 槽位一般指素材库文件；背景允许直接指场景图，音频槽位允许 audio/bgm|amb|sfx 下的曲目 */
+        const okRef = !v || ASSET_NAME.test(v) ||
+          (g === 'background' && /^bg\/[A-Za-z0-9._-]+$/.test(v)) ||
+          (g === 'audio' && PACK_AUDIO_REF.test(v));
+        if (!okRef) throw httpError(400, 'assets.json 的 ' + g + '.' + k + ' 指向非法素材路径');
+      }
+    }
+    if (j.scenes !== undefined && !isPlainObj(j.scenes)) throw httpError(400, 'assets.json 的 scenes 必须是对象');
+    if (j.atriExpr !== undefined && j.atriExpr !== null && !isPlainObj(j.atriExpr)) {
+      throw httpError(400, 'assets.json 的 atriExpr 必须是对象');
+    }
+    return j;
+  }
+
+  if (name === 'scenes.json') {
+    if (j.list !== undefined && !Array.isArray(j.list)) throw httpError(400, 'scenes.json 的 list 必须是数组');
+    (j.list || []).forEach((s, i) => {
+      const at = 'scenes.json 第 ' + (i + 1) + ' 个场景';
+      if (!isPlainObj(s)) throw httpError(400, at + ' 不是对象');
+      if (!/^[A-Za-z0-9._-]{1,40}$/.test(String(s.id || ''))) throw httpError(400, at + ' 的 id 不合法');
+      if (s.seasons !== undefined && !Array.isArray(s.seasons)) throw httpError(400, at + ' 的 seasons 必须是数组');
+      if (s.slots === undefined) return;
+      if (!isPlainObj(s.slots)) throw httpError(400, at + ' 的 slots 必须是对象');
+      for (const k of SLOT_KEYS) {
+        const v = s.slots[k];
+        if (v === undefined) continue;
+        if (typeof v !== 'string' || (v && !/^bg\/[A-Za-z0-9._-]+$/.test(v))) {
+          throw httpError(400, at + ' 的 slots.' + k + ' 指向非法背景路径');
+        }
+      }
+    });
+    return j;
+  }
+
+  /* assets/audio/index.json：bgm 的每个键都是曲目数组（custom 也是数组），
+   * amb / sfx 是「名字 → 路径」的对象，sceneMood 是「场景 → 环境音名」。 */
+  if (j.bgm !== undefined) {
+    if (!isPlainObj(j.bgm)) throw httpError(400, 'assets/audio/index.json 的 bgm 必须是对象');
+    for (const k of Object.keys(j.bgm)) {
+      const v = j.bgm[k];
+      if (k === 'custom' && !Array.isArray(v)) {
+        throw httpError(400, 'assets/audio/index.json 的 bgm.custom 必须是数组');
+      }
+      if (typeof v !== 'string' && !Array.isArray(v)) {
+        throw httpError(400, 'assets/audio/index.json 的 bgm.' + k + ' 必须是曲目数组');
+      }
+      const list = Array.isArray(v) ? v : [v];
+      for (const f of list) {
+        if (typeof f !== 'string' || !PACK_AUDIO_REF.test(f)) {
+          throw httpError(400, 'assets/audio/index.json 的 bgm.' + k + ' 含非法曲目路径');
+        }
+      }
+    }
+  }
+  for (const g of ['amb', 'sfx']) {
+    if (j[g] === undefined) continue;
+    if (!isPlainObj(j[g])) throw httpError(400, 'assets/audio/index.json 的 ' + g + ' 必须是对象');
+    for (const k of Object.keys(j[g])) {
+      if (typeof j[g][k] !== 'string' || !PACK_AUDIO_REF.test(j[g][k])) {
+        throw httpError(400, 'assets/audio/index.json 的 ' + g + '.' + k + ' 指向非法音频路径');
+      }
+    }
+  }
+  if (j.sceneMood !== undefined) {
+    if (!isPlainObj(j.sceneMood)) throw httpError(400, 'assets/audio/index.json 的 sceneMood 必须是对象');
+    for (const k of Object.keys(j.sceneMood)) {
+      if (typeof j.sceneMood[k] !== 'string') throw httpError(400, 'assets/audio/index.json 的 sceneMood.' + k + ' 必须是字符串');
+    }
+  }
+  return j;
 }
 
 /* CRC32（标准 IEEE 多项式，查表法） */
@@ -1234,30 +1323,79 @@ function importAssetPack(buf) {
     if (meta.size !== e.data.length || meta.crc !== crc32(e.data)) {
       throw httpError(400, '文件内容与清单不符：' + e.name.slice(0, 80));
     }
+    /* 配置文件先验结构：坏配置在这里就拒掉，不能等写进磁盘后让读取接口炸 */
+    if (PACK_CONFIG_FILES.indexOf(e.name) >= 0) validatePackConfig(e.name, e.data);
     writes.push({ name: e.name, data: e.data });
   }
-  /* 导入前备份现有配置文件，便于回滚 */
+  /* 备份所有「会被覆盖」的文件（不再只备份三份配置）：图片、音频同样要能还原。
+   * 备份失败就停在这里，此时磁盘上一个字节都没改。 */
   const totalBytes = writes.reduce((n, w) => n + w.data.length, 0);
-  ensureDiskSpace(totalBytes * 2);   /* 备份一份 + 写入一份 */
-  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-  const backupDir = localPath('data/assetpack-backups/' + stamp);
-  fs.mkdirSync(backupDir, { recursive: true });
-  for (const c of PACK_CONFIG_FILES) {
-    try {
-      const src = localPath(c);
-      if (fs.statSync(src).isFile()) fs.writeFileSync(path.join(backupDir, path.basename(c)), fs.readFileSync(src));
-    } catch (e) { /* 缺文件不备份 */ }
-  }
-  /* 写回 */
-  let bytes = 0;
+  const overwrite = [];
+  let overwriteBytes = 0;
   for (const w of writes) {
-    const p = localPath(w.name);
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, w.data);
-    bytes += w.data.length;
+    try {
+      const st = fs.statSync(localPath(w.name));
+      if (st.isFile()) { overwrite.push(w.name); overwriteBytes += st.size; }
+    } catch (e) { /* 目标还不存在，无需备份 */ }
   }
+  ensureDiskSpace(totalBytes + overwriteBytes);   /* 备份一份 + 写入一份 */
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-' + crypto.randomBytes(2).toString('hex');
+  const backupRel = 'data/assetpack-backups/' + stamp;
+  const backupDir = localPath(backupRel);
+  try {
+    for (const rel of overwrite) {
+      const dst = path.join(backupDir, rel);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.copyFileSync(localPath(rel), dst);
+    }
+  } catch (e) {
+    throw httpError(500, '导入前备份失败，原有文件未改动：' + e.message);
+  }
+  /* 先全部写进同目录的临时文件，再逐个改名落位：任何一步失败都能整批回滚。 */
+  const suffix = '.fwimport-' + process.pid + '-' + crypto.randomBytes(3).toString('hex');
+  const staged = [];
+  try {
+    for (const w of writes) {
+      const p = localPath(w.name);
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      const tmp = p + suffix;
+      fs.writeFileSync(tmp, w.data);
+      staged.push({ rel: w.name, target: p, tmp: tmp });
+    }
+  } catch (e) {
+    for (const s of staged) { try { fs.unlinkSync(s.tmp); } catch (e2) { /* 已被清掉 */ } }
+    throw httpError(500, '写入素材失败，原有文件未改动：' + e.message);
+  }
+  const done = [];
+  try {
+    for (const s of staged) {
+      fs.renameSync(s.tmp, s.target);   /* 同目录改名，原子替换 */
+      done.push(s.rel);
+    }
+  } catch (e) {
+    const stuck = [];
+    for (const rel of done) {
+      try {
+        const bak = path.join(backupDir, rel);
+        if (fs.existsSync(bak)) fs.copyFileSync(bak, localPath(rel));
+        else fs.unlinkSync(localPath(rel));
+      } catch (e2) { stuck.push(rel); }
+    }
+    for (const s of staged) { try { fs.unlinkSync(s.tmp); } catch (e2) { /* 已改名的没有临时文件 */ } }
+    throw httpError(500, '写入素材时出错，已回滚' +
+      (stuck.length ? '（这些文件需要手动恢复：' + stuck.slice(0, 5).join('、') + '）' : '') +
+      '：' + e.message);
+  }
+  let bytes = 0;
+  for (const w of writes) bytes += w.data.length;
   cache = { at: 0, value: null };
-  return { ok: true, files: writes.length, bytes, scope: mf.scope, backup: 'data/assetpack-backups/' + stamp, assets: assetsPayload() };
+  sceneCache = { at: 0, value: null };
+  let assets = null;
+  try { assets = assetsPayload(); } catch (e) { /* 文件已写好，读不出来也不该把整次导入判成失败 */ }
+  return {
+    ok: true, files: writes.length, bytes, scope: mf.scope,
+    backup: backupRel, overwritten: overwrite.length, assets,
+  };
 }
 
 /* ---------- 每日日程：千肥万鱼自包含 + 兼容 DSH daily-schedule ----------
@@ -2479,6 +2617,8 @@ function sendJson(res, code, obj) {
 function sendError(res, e) {
   const code = e && e.status ? e.status : 500;
   if (code >= 500 && code !== 502) console.error('[fish-watch] ' + (e && e.stack ? e.stack : e));
+  /* 已经在流式输出（图片 / 语音 / zip）或响应已结束时不能再写 JSON 头，直接断开这条连接 */
+  if (res.headersSent || res.writableEnded) { try { res.destroy(); } catch (e2) { /* 已断开 */ } return; }
   sendJson(res, code, { ok: false, error: e && e.message ? e.message : String(e) });
 }
 function readBody(req) {
@@ -2612,6 +2752,10 @@ async function handlePost(p, req, res) {
     const text = String(body.text || '').trim().slice(0, 2000);
     if (!text) throw httpError(400, '先写点什么再发');
     if (chatBusy) throw httpError(429, '上一条还在等回复，稍等一下');
+    /* 超时后挂起的那条仍占着唯一的等待位：此时再发会把它顶掉，前一条的后续就丢了。
+     * 到期（6 分钟）才允许接管，并作废旧等待。 */
+    if (chatPending && Date.now() - chatPending.at > 6 * 60 * 1000) resetChatPending();
+    if (chatPending) throw httpError(429, '上一条还没等到 DSH 收尾，等它说完再发（继续等或点「清空记录」都可以）');
     chatBusy = true;
     try {
       pushChat('user', text);
@@ -2665,7 +2809,7 @@ async function handlePost(p, req, res) {
   return sendJson(res, 404, { ok: false, error: 'not found' });
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   const url = new URL(req.url, 'http://' + HOST);
   const p = url.pathname;
   const method = req.method || 'GET';
@@ -2823,6 +2967,21 @@ const server = http.createServer((req, res) => {
   }
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('not found');
+}
+
+/* 同步异常兜底：一个坏配置文件、一段畸形 URL 都不该让整个服务退出。
+ * 已经发过响应头的（流式资源）直接断开，避免往半截响应里再塞 JSON。 */
+const server = http.createServer((req, res) => {
+  try {
+    handleRequest(req, res);
+  } catch (e) {
+    try {
+      if (res.headersSent) { res.destroy(); return; }
+      sendError(res, e);
+    } catch (e2) {
+      try { res.destroy(); } catch (e3) { /* 连接已经没了 */ }
+    }
+  }
 });
 
 server.on('error', (e) => {
