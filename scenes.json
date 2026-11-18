@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "note": "场景库：时段 × 季节 × 场景。素材为 AI 生成的《千恋万花》风格场景 PNG 转 JPG，3 时段（day/dusk/night），置于 assets/bg/；-t 为设置面板缩略图。",
+  "note": "场景库：时段 × 季节 × 场景。素材为生成式 AI 绘制的二次元场景 PNG 转 JPG，3 时段（day/dusk/night），置于 assets/bg/；-t 为设置面板缩略图。",
   "seasons": [
     "spring",
     "summer",
