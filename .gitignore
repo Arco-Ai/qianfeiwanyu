@@ -24,6 +24,11 @@ window-state.json
 *.key
 *_secret*
 
+# --- 亚托莉素材：仅在本地安装使用，授权只到自用，绝不入库 ---
+assets/atri/
+assets/atri_*.png
+atri-expressions-pack.zip
+
 # --- 打包产物：体积大且含本机构建的二进制，仓库里不保留 ---
 dist/
 *.exe
