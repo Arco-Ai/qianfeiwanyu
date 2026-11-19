@@ -1500,7 +1500,7 @@ html[data-theme="dark"] #modal .mtabs::-webkit-scrollbar-thumb{background:rgba(1
             <p class="desc">「浏览器语音」用系统自带的语音合成，<b>免配置、离线可用</b>；「服务端 TTS」走第三方接口；「本地 GPT-SoVITS」连你自己在本机跑的 <code>api_v2.py</code>，可以克隆任意音色。点右上角「语音」可随时念当前这句台词。</p>
             <div class="field"><label>引擎</label><select id="ttsEngine"><option value="browser">浏览器语音（免配置）</option><option value="server">服务端 TTS（需密钥）</option><option value="sovits">本地 GPT-SoVITS（本机 API）</option><option value="cosyvoice">飞鱼声线（CosyVoice3 常驻服务）</option></select></div>
             <div class="field"><label>自动朗读台词</label><input type="checkbox" id="ttsAutoRead" style="accent-color:var(--accent)"><span class="unit">只要大肥鱼在对话框里说出新台词，就自动转成语音播出来</span></div>
-            <div class="field"><label>忽略动作描写</label><input type="checkbox" id="ttsStripActions" style="accent-color:var(--accent)"><span class="unit wrap">朗读时跳过 <code>*星号动作*</code> 和图片链接，只念她真正说出口的话；对话框里的动作描写照常显示</span></div>
+            <div class="field"><label>忽略动作描写</label><input type="checkbox" id="ttsStripActions" style="accent-color:var(--accent)"><span class="unit wrap">朗读时跳过 <code>*星号动作*</code>、<code>（括号动作）</code>和图片链接，只念她真正说出口的话；对话框里的动作描写照常显示</span></div>
             <p class="desc" style="margin:0 0 10px">勾选后<b>页面一启动就生效</b>：新台词出现即合成、随文字一起播；换下一句会自动打断上一句。你自己的发言和旁白不会读。浏览器首次会拦截自动播放，点一下画面任意位置即可解锁（只会提示一次）。</p>
             <div class="mrow"><button class="mbtn" id="btnTestVoice">试听一句</button><span class="unit" id="voiceState">—</span></div>
           </div>
@@ -4783,6 +4783,9 @@ html[data-theme="dark"] #modal .mtabs::-webkit-scrollbar-thumb{background:rgba(1
       .replace(/\*[^*\n]+\*/g,' ')                 /* *动作描写*（整行或行内） */
       .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')         /* ![图片](本地路径) */
       .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')       /* [文字](链接) → 保留文字 */
+      .replace(/（[^）\n]*）/g,' ')                 /* （全角括号里的动作/注释，如（小声嘟囔）） */
+      .replace(/\([^)\n]*\)/g,' ')                  /* (半角括号里的动作/注释) */
+      .replace(/【[^】\n]*】/g,' ')                 /* 【方括号里的动作/注释】 */
       .replace(/\n{2,}/g,' ')                       /* 空行压成停顿 */
       .replace(/[ \t]{2,}/g,' ')
       .replace(/^[，,\s]+|[，,\s]+$/g,'')
