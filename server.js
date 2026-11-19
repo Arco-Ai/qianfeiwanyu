@@ -192,7 +192,7 @@ const DEFAULT_SETTINGS = {
     style: 'cute',        /* cute（微调 F6）/ gentle（基础权重 + 温柔参考） */
     speed: 1,
     dir: '',              /* 引擎目录（含 server.py 与 CosyVoice/ 和 models/） */
-    timeoutSec: 180,      /* 首次加载 40–60 秒，超时给宽一点 */
+    timeoutSec: 180,      /* 首次加载 1–3 分钟，超时给宽一点 */
     autoStart: false,
   },
   chat: {
@@ -2312,7 +2312,7 @@ async function probeCosyVoice(body) {
   }
   const info = h.json || {};
   if (!info.ready) {
-    throw httpError(502, '服务在线但模型未就绪：' + (info.error || (info.loading ? '正在加载，首次约 40–60 秒' : '未知')));
+    throw httpError(502, '模型加载中：' + (info.error || (info.loading ? '飞鱼声线首次加载模型通常需要 1–3 分钟，请稍后点测试连接' : '服务在线但模型未就绪')));
   }
   const out = await synthCosyVoice('嗯，我在。', { cosyvoice: cfg });
   return {
@@ -2953,7 +2953,7 @@ async function ensureCosyVoice(force) {
     return COSY_STATE;
   }
   COSY_STATE.status = 'starting';
-  COSY_STATE.detail = '正在启动飞鱼声线，首次加载模型约需 40–60 秒…';
+  COSY_STATE.detail = '正在启动飞鱼声线，首次加载模型通常需要 1–3 分钟…';
   COSY_STATE.startedAt = Date.now();
   let spawnFailed = '';
   try {
