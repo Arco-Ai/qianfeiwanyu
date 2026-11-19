@@ -117,6 +117,7 @@ const APP_DIR = path.resolve(__dirname);
 const ASSETS_DIR = path.join(APP_DIR, 'assets');
 const UPLOADS_DIR = path.join(ASSETS_DIR, 'uploads');
 const DIARY_DIR = path.join(APP_DIR, 'data/diaries');
+const VOICE_DIR = path.join(APP_DIR, 'voice');
 
 const at = (rel) => path.join(ROOT, rel);
 const round = (n, d = 1) => Math.round(Number(n) * Math.pow(10, d)) / Math.pow(10, d);
@@ -167,6 +168,9 @@ const DEFAULT_SETTINGS = {
   serverTts: { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'tts-1', voice: 'alloy', format: 'mp3' },
   sovits: {
     baseUrl: 'http://127.0.0.1:9880',
+    dir: '',              /* 引擎安装目录（含 api_v2.py 或 start-sovits.cmd）；留空则只在常见位置里找 */
+    launcher: '',         /* 启动脚本文件名；留空用 start-sovits.cmd。多个引擎并存时可指定各自的脚本 */
+    voiceId: '',          /* 内置音色 id（voice/<id>/profile.json）；留空才用下面的自定义参考音频 */
     refAudioPath: '',
     promptText: '',
     promptLang: 'zh',
@@ -182,10 +186,25 @@ const DEFAULT_SETTINGS = {
     timeoutSec: 120,
     autoStart: false,     /* 默认不自动拉起：本机脚本属于可执行文件，交给用户点了才启动 */
   },
+  /* 飞鱼声线（CosyVoice3）常驻服务：脚本随包，6.9GB 权重与运行时放在引擎目录 */
+  cosyvoice: {
+    baseUrl: 'http://127.0.0.1:9882',
+    style: 'cute',        /* cute（微调 F6）/ gentle（基础权重 + 温柔参考） */
+    speed: 1,
+    dir: '',              /* 引擎目录（含 server.py 与 CosyVoice/ 和 models/） */
+    timeoutSec: 180,      /* 首次加载 40–60 秒，超时给宽一点 */
+    autoStart: false,
+  },
   chat: {
+    provider: 'dsh',      /* dsh（默认，走 DSH 会话） / api（本地自用：OpenAI 兼容接口） */
     dshBaseUrl: 'http://127.0.0.1:3080/m/api',
     dshSessionId: '',
     dshToken: '',
+    apiBaseUrl: 'https://api.deepseek.com/v1',
+    apiKey: '',
+    apiModel: 'deepseek-chat',
+    systemPrompt: '',
+    maxTurns: 8,
     replyTimeoutSec: 100,
   },
   schedule: {
@@ -226,6 +245,15 @@ function normalizeSovits(raw, base) {
   const b = base || DEFAULT_SETTINGS.sovits;
   return {
     baseUrl: str(r.baseUrl, 300, b.baseUrl) || b.baseUrl,
+    dir: str(r.dir, 400, b.dir || ''),
+    /* 只收文件名：这个值会被拼进 fs.stat，允许带路径就等于允许越权读任意目录 */
+    launcher: (function () {
+      const v = String(r.launcher === undefined ? (b.launcher || '') : r.launcher).trim();
+      return /^[A-Za-z0-9._-]{1,64}\.(cmd|bat)$/i.test(v) ? v : (b.launcher || '');
+    })(),
+    voiceId: (r.voiceId === undefined
+      ? (b.voiceId || '')
+      : (/^[a-z0-9][a-z0-9_-]{0,31}$/.test(String(r.voiceId)) ? String(r.voiceId) : '')),
     refAudioPath: str(r.refAudioPath, 520, b.refAudioPath || ''),
     promptText: str(r.promptText, 1000, b.promptText || ''),
     promptLang: oneOf(r.promptLang, SOVITS_LANGS, b.promptLang),
@@ -243,6 +271,19 @@ function normalizeSovits(raw, base) {
   };
 }
 
+function normalizeCosyVoice(raw, base) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const b = base || DEFAULT_SETTINGS.cosyvoice;
+  return {
+    baseUrl: str(r.baseUrl, 300, b.baseUrl) || b.baseUrl,
+    style: oneOf(r.style, ['cute', 'gentle'], b.style),
+    speed: num(r.speed, 0.6, 1.5, b.speed),
+    dir: str(r.dir, 400, b.dir || ''),
+    timeoutSec: num(r.timeoutSec, 20, 600, b.timeoutSec),
+    autoStart: bool(r.autoStart, b.autoStart),
+  };
+}
+
 function mergeSettings(body, cur) {
   const b = body && typeof body === 'object' ? body : {};
   const c = cur || DEFAULT_SETTINGS;
@@ -253,6 +294,7 @@ function mergeSettings(body, cur) {
   const cs = c.serverTts || DEFAULT_SETTINGS.serverTts;
   const ct = c.tts || DEFAULT_SETTINGS.tts;
   const cv = c.sovits || DEFAULT_SETTINGS.sovits;
+  const cf = c.cosyvoice || DEFAULT_SETTINGS.cosyvoice;
   const ch = b.chat && typeof b.chat === 'object' ? b.chat : {};
   const cc = c.chat || DEFAULT_SETTINGS.chat;
   const sd = b.schedule && typeof b.schedule === 'object' ? b.schedule : {};
@@ -273,7 +315,7 @@ function mergeSettings(body, cur) {
       enabled: bool(t.enabled, ct.enabled),
       autoRead: bool(t.autoRead, ct.autoRead),
       stripActions: t.stripActions === undefined ? ct.stripActions !== false : !!t.stripActions,
-      engine: oneOf(t.engine, ['browser', 'server', 'sovits'], ct.engine),
+      engine: oneOf(t.engine, ['browser', 'server', 'sovits', 'cosyvoice'], ct.engine),
       voice: str(t.voice, 200, ct.voice || ''),
       rate: num(t.rate, 0.5, 2, ct.rate),
       pitch: num(t.pitch, 0, 2, ct.pitch),
@@ -294,10 +336,17 @@ function mergeSettings(body, cur) {
       format: oneOf(st.format, ['mp3', 'wav', 'opus', 'aac', 'flac'], cs.format),
     },
     sovits: normalizeSovits(b.sovits, cv),
+    cosyvoice: normalizeCosyVoice(b.cosyvoice, cf),
     chat: {
+      provider: oneOf(ch.provider, ['dsh', 'api'], cc.provider),
       dshBaseUrl: str(ch.dshBaseUrl, 300, cc.dshBaseUrl),
       dshSessionId: str(ch.dshSessionId, 160, cc.dshSessionId || ''),
       dshToken: ch.clearDshToken ? '' : (typeof ch.dshToken === 'string' && ch.dshToken ? ch.dshToken.slice(0, 200) : (cc.dshToken || '')),
+      apiBaseUrl: str(ch.apiBaseUrl, 300, cc.apiBaseUrl),
+      apiKey: typeof ch.apiKey === 'string' && ch.apiKey ? ch.apiKey.slice(0, 600) : (cc.apiKey || ''),
+      apiModel: str(ch.apiModel, 120, cc.apiModel),
+      systemPrompt: str(ch.systemPrompt, 2000, cc.systemPrompt || ''),
+      maxTurns: num(ch.maxTurns, 2, 30, cc.maxTurns),
       replyTimeoutSec: num(ch.replyTimeoutSec, 20, 300, cc.replyTimeoutSec),
     },
     schedule: {
@@ -316,6 +365,7 @@ function mergeSettings(body, cur) {
   };
   if (b._clearImageKey === true) s.image.apiKey = '';
   if (b._clearTtsKey === true) s.serverTts.apiKey = '';
+  if (b._clearChatKey === true) s.chat.apiKey = '';
   return s;
 }
 
@@ -334,13 +384,19 @@ function publicSettings(s) {
   out.image.apiKeySet = !!out.image.apiKey;
   out.serverTts.apiKeySet = !!out.serverTts.apiKey;
   out.chat.dshTokenSet = !!out.chat.dshToken;
+  out.chat.apiKeySet = !!out.chat.apiKey;
   out.image.apiKey = '';
   out.serverTts.apiKey = '';
   out.chat.dshToken = '';
+  out.chat.apiKey = '';
+  out.sovitsVoices = listVoiceProfiles().map(function (v) {
+    return { id: v.id, name: v.name, modelVersion: v.modelVersion, weights: !!(v.gptWeights && v.sovitsWeights), hasPrompt: !!v.promptText };
+  });
   out.capabilities = {
     browserTts: true,
     serverTts: !!(s.serverTts.apiKey || process.env.FISH_TTS_API_KEY),
     sovits: !!(s.sovits && s.sovits.baseUrl),
+    cosyvoice: !!(s.cosyvoice && s.cosyvoice.baseUrl),
     imageGen: !!(s.image.apiKey || process.env.FISH_IMAGE_API_KEY),
     chat: true,
     schedule: true,
@@ -916,8 +972,8 @@ function loadAssets() {
     audio: Object.assign({}, EMPTY_ASSETS.audio, a.audio),
     useDshPetArt: !!a.useDshPetArt,
     atriExpr: (a.atriExpr && typeof a.atriExpr === 'object') ? a.atriExpr : null,
-    // 角色形态：whale-mature（默认成熟鲸鱼娘）/ whale-chibi（Q版鲸鱼娘）
-    form: ['whale-mature', 'whale-chibi'].indexOf(a.form) >= 0 ? a.form : 'whale-mature',
+    // 角色形态：whale-mature（默认成熟鲸鱼娘）/ whale-chibi（Q版鲸鱼娘）/ atri（本地已装素材时可选）
+    form: ['whale-mature', 'whale-chibi', 'atri'].indexOf(a.form) >= 0 ? a.form : 'whale-mature',
     // 鲸鱼娘形态下是否沿用亚托莉场景库背景：默认否（用鲸鱼娘场景/壁纸）
     whaleBgFromAtri: !!a.whaleBgFromAtri,
     // 鲸鱼娘横版壁纸钉住项（C70..C77 的编号），空表示按时段用氛围场景
@@ -2012,8 +2068,9 @@ async function generateImage(body) {
 async function synthSpeech(body) {
   const text = String(body.text || '').trim().slice(0, 1000);
   if (!text) throw httpError(400, '没有需要朗读的文字');
-  const engine = oneOf(body.engine, ['server', 'sovits'], (SETTINGS.tts && SETTINGS.tts.engine) || 'server');
+  const engine = oneOf(body.engine, ['server', 'sovits', 'cosyvoice'], (SETTINGS.tts && SETTINGS.tts.engine) || 'server');
   if (engine === 'sovits') return synthSoVits(text, body);
+  if (engine === 'cosyvoice') return synthCosyVoice(text, body);
   const cfg = SETTINGS.serverTts;
   const key = cfg.apiKey || process.env.FISH_TTS_API_KEY || '';
   if (!key) throw httpError(400, '尚未配置语音模型密钥：在「设置 → 语音」填 API Key，或设置环境变量 FISH_TTS_API_KEY。也可以改用免配置的「浏览器语音」。');
@@ -2032,6 +2089,67 @@ async function synthSpeech(body) {
 }
 
 /* ---------- 本地 GPT-SoVITS（api_v2.py / api.py） ---------- */
+
+/* ---------- 内置音色 ----------
+ * voice/<id>/profile.json 描述一套随包带的音色：参考音频、参考台词，可选专属权重。
+ * 路径一律相对 voice 目录解析，换台机器不会失效（自定义参考音频仍存绝对路径）。
+ */
+const VOICE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+function readVoiceProfile(id) {
+  const key = String(id || '');
+  if (!VOICE_ID_RE.test(key)) return null;
+  const dir = path.join(VOICE_DIR, key);
+  let raw;
+  try { raw = JSON.parse(fs.readFileSync(path.join(dir, 'profile.json'), 'utf8')); }
+  catch (e) { return null; }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const refName = String(raw.refAudio || 'ref.wav');
+  if (!/^[\w.-]+\.(wav|mp3|flac|ogg)$/i.test(refName)) return null;
+  const refAbs = path.join(dir, refName);
+  if (!fs.existsSync(refAbs)) return null;
+  const weight = (name) => {
+    if (!name) return '';
+    const f = String(name);
+    if (!/^[\w.-]+\.(ckpt|pth)$/i.test(f)) return '';
+    const abs = path.join(dir, f);
+    return fs.existsSync(abs) ? abs : '';
+  };
+  return {
+    id: key,
+    name: String(raw.name || key).slice(0, 40),
+    modelVersion: String(raw.modelVersion || 'zero-shot').slice(0, 24),
+    dir: dir,
+    refAudio: refAbs.replace(/\\/g, '/'),
+    promptText: String(raw.promptText || '').slice(0, 1000),
+    promptLang: SOVITS_LANGS.indexOf(raw.promptLang) >= 0 ? raw.promptLang : 'zh',
+    textLang: SOVITS_LANGS.indexOf(raw.textLang) >= 0 ? raw.textLang : 'zh',
+    gptWeights: weight(raw.gptWeights),
+    sovitsWeights: weight(raw.sovitsWeights),
+  };
+}
+function listVoiceProfiles() {
+  let ids = [];
+  try { ids = fs.readdirSync(VOICE_DIR); } catch (e) { return []; }
+  const out = [];
+  for (const id of ids) { const p = readVoiceProfile(id); if (p) out.push(p); }
+  return out.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+}
+function activeVoiceProfile() {
+  const id = (SETTINGS && SETTINGS.sovits && SETTINGS.sovits.voiceId) || '';
+  return id ? readVoiceProfile(id) : null;
+}
+/* 服务已经开着时（可能是用户自己启的），把权重切到内置音色，避免沿用上次加载的模型 */
+async function applyVoiceWeights(prof) {
+  if (!prof || !prof.gptWeights || !prof.sovitsWeights) return false;
+  const base = sovitsEndpoint().replace(/\/+$/, '');
+  try {
+    const g = await proxyFetch(base + '/set_gpt_weights?weights_path=' + encodeURIComponent(prof.gptWeights), { method: 'GET' }, 120000);
+    if (!g || !g.ok) return false;
+    const w = await proxyFetch(base + '/set_sovits_weights?weights_path=' + encodeURIComponent(prof.sovitsWeights), { method: 'GET' }, 120000);
+    return !!(w && w.ok);
+  } catch (e) { return false; }
+}
 
 function sovitsPayload(text, cfg) {
   const p = {
@@ -2064,6 +2182,16 @@ function sovitsErrorText(r) {
 
 async function synthSoVits(text, body) {
   const cfg = normalizeSovits(body && body.sovits, SETTINGS.sovits || DEFAULT_SETTINGS.sovits);
+  /* 内置音色优先：参考音频与台词随包带，设置里的自定义项不参与 */
+  const voice = cfg.voiceId ? readVoiceProfile(cfg.voiceId) : null;
+  if (cfg.voiceId && !voice) {
+    throw httpError(400, '内置音色不存在或已损坏：voice/' + cfg.voiceId + '/profile.json（检查文件是否被删或改名）');
+  }
+  if (voice) {
+    cfg.refAudioPath = voice.refAudio;
+    cfg.promptText = voice.promptText;
+    cfg.promptLang = voice.promptLang;
+  }
   const timeoutMs = Math.round(cfg.timeoutSec * 1000);
   const endpoint = joinUrl(cfg.baseUrl, 'tts');
   const payload = sovitsPayload(text, cfg);
@@ -2071,10 +2199,14 @@ async function synthSoVits(text, body) {
 
   /* api_v2 没有免参考文本模式：v2Pro/v3 用了 vocoder，prompt_text 为空会直接报错 */
   if (!cfg.refAudioPath) {
-    throw httpError(400, 'GPT-SoVITS 需要参考音频：请在设置里填一段 3–10 秒 wav 的本机绝对路径。');
+    throw httpError(400, voice
+      ? '内置音色「' + voice.name + '」缺少参考音频文件：voice/' + voice.id + '/'
+      : 'GPT-SoVITS 需要参考音频：请在设置里填一段 3–10 秒 wav 的本机绝对路径。');
   }
   if (!cfg.promptText) {
-    throw httpError(400, 'GPT-SoVITS 需要参考台词：请填这段参考音频里逐字对应的原话（api_v2 不支持免参考文本）。');
+    throw httpError(400, voice
+      ? '内置音色「' + voice.name + '」还缺参考台词：请在 voice/' + voice.id + '/profile.json 里补 promptText，要和 ' + path.basename(voice.refAudio) + ' 逐字对应。'
+      : 'GPT-SoVITS 需要参考台词：请填这段参考音频里逐字对应的原话（api_v2 不支持免参考文本）。');
   }
   /* 本机 SoVITS 才检查文件是否存在；远程服务上的路径由对方机器负责 */
   const localSovits = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/i.test(cfg.baseUrl);
@@ -2135,6 +2267,64 @@ async function probeSoVits(body) {
     type: out.type,
     elapsedMs: Date.now() - t0,
     refAudioPath: cfg.refAudioPath || '',
+  };
+}
+
+/* ---------- 飞鱼声线（CosyVoice3 常驻服务） ----------
+ * 对面是一个 Python 服务：模型常驻显存，按 OpenAI 的 /v1/audio/speech 协议要一句给一句。
+ * 与 GPT-SoVITS 的区别是「声线由服务端选择」，这边只传 voice（cute/gentle）。
+ */
+async function synthCosyVoice(text, body) {
+  const cfg = normalizeCosyVoice(body && body.cosyvoice, SETTINGS.cosyvoice || DEFAULT_SETTINGS.cosyvoice);
+  if (!/^https?:\/\//i.test(cfg.baseUrl)) throw httpError(400, '飞鱼声线服务地址必须是 http:// 或 https:// 开头');
+  const base = cfg.baseUrl.replace(/\/+$/, '');
+  const timeoutMs = Math.round(cfg.timeoutSec * 1000);
+  let r;
+  try {
+    r = await proxyFetch(base + '/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: text, voice: cfg.style, response_format: 'wav', speed: cfg.speed }),
+    }, timeoutMs);
+  } catch (e) {
+    throw httpError(502, '连不上飞鱼声线服务（' + base + '）：' + redact(e.message)
+      + '。确认已运行 server.py --port 9882，或在「设置 → 语音 → 飞鱼声线」点「启动服务」。');
+  }
+  if (!r.ok || (r.contentType || '').toLowerCase().indexOf('json') >= 0) {
+    const j = r.json || {};
+    const msg = j.error || j.message || r.text || '';
+    throw httpError(502, '飞鱼声线服务返回 ' + r.status + '：' + redact(typeof msg === 'string' ? msg : JSON.stringify(msg)).slice(0, 400));
+  }
+  if (!r.buffer || !r.buffer.length) throw httpError(502, '飞鱼声线服务返回了空音频');
+  return { buffer: r.buffer, type: 'audio/wav', engine: 'cosyvoice' };
+}
+
+async function probeCosyVoice(body) {
+  const cfg = normalizeCosyVoice(body && body.cosyvoice, SETTINGS.cosyvoice || DEFAULT_SETTINGS.cosyvoice);
+  if (!/^https?:\/\//i.test(cfg.baseUrl)) throw httpError(400, '服务地址必须是 http:// 或 https:// 开头');
+  const base = cfg.baseUrl.replace(/\/+$/, '');
+  const t0 = Date.now();
+  let h;
+  try {
+    h = await proxyFetch(base + '/health', { method: 'GET' }, 8000);
+  } catch (e) {
+    throw httpError(502, '连不上飞鱼声线服务（' + base + '）：' + redact(e.message));
+  }
+  const info = h.json || {};
+  if (!info.ready) {
+    throw httpError(502, '服务在线但模型未就绪：' + (info.error || (info.loading ? '正在加载，首次约 40–60 秒' : '未知')));
+  }
+  const out = await synthCosyVoice('嗯，我在。', { cosyvoice: cfg });
+  return {
+    ok: true,
+    baseUrl: base,
+    bytes: out.buffer.length,
+    type: out.type,
+    elapsedMs: Date.now() - t0,
+    style: cfg.style,
+    device: info.device || '',
+    loadSeconds: info.load_seconds || 0,
+    vramUsedMb: info.vram_used_mb || 0,
   };
 }
 
@@ -2347,6 +2537,50 @@ async function dshCollect(sessionId, cursor) {
   return { reply, ended, cursor: next };
 }
 
+/* ---------- 第三方对话接口（本地自用） ----------
+ * 只在「设置 → 对话 → 来源」选成 api 时使用；密钥保存在本机 settings.json，
+ * 由服务端代发，浏览器不直接接触第三方，也不会把 Key 写进页面。
+ */
+function defaultChatSystem() {
+  const p = (function () { try { return loadPersona(); } catch (e) { return null; } })() || {};
+  const name = SETTINGS.characterName || p.name || '亚托莉';
+  const owner = SETTINGS.ownerName || p.ownerName || p.owner || '你';
+  return '你是「' + name + '」，正在通过千肥万鱼和' + owner + '面对面说话。'
+    + '语气自然口语、简短，一般 1–3 句，像真的在对话；不要输出 Markdown、列表或括号里的动作说明。'
+    + '描写动作、神态、心理时，一律用单星号包裹并单独成行，例如：*揉了揉眼睛*\n说出口的台词不要放进星号里。'
+    + '不知道的事就直说不知道。'
+    + '\n如果你在台词里向对方提问，可在最后另起一行附上 2–3 个「对方可能怎么回答」的简短选项，格式为 [[CHOICES]]选项A|选项B|选项C[[/CHOICES]]；不提问时不要输出这段标记。';
+}
+
+async function chatViaApi(text) {
+  const c = SETTINGS.chat;
+  const key = c.apiKey || process.env.FISH_CHAT_API_KEY || '';
+  if (!key) throw httpError(400, '尚未配置对话模型密钥：在「设置 → 对话」填 API Key，或设环境变量 FISH_CHAT_API_KEY；也可以把来源切回 DSH。');
+  const msgs = [{ role: 'system', content: c.systemPrompt || defaultChatSystem() }];
+  const turns = Math.max(1, Math.min(30, c.maxTurns || 8));
+  CHAT_LOG.slice(-turns * 2).forEach((m) => {
+    if ((m.role === 'user' || m.role === 'assistant') && m.text) msgs.push({ role: m.role, content: m.text });
+  });
+  if (!msgs.some((m) => m.role === 'user' && m.content === text)) msgs.push({ role: 'user', content: text });
+  let r;
+  try {
+    r = await proxyFetch(joinUrl(c.apiBaseUrl, 'chat/completions'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: c.apiModel, messages: msgs, temperature: 0.8, max_tokens: 800 }),
+    }, 120000);
+  } catch (e) { throw httpError(502, '对话模型请求失败：' + redact(e.message)); }
+  if (!r.ok) {
+    const j = r.json || {};
+    throw httpError(502, '对话模型返回 ' + r.status + '：' + redact(j.error ? (j.error.message || JSON.stringify(j.error)) : r.text));
+  }
+  const d = r.json || {};
+  const msg = (d.choices && d.choices[0] && d.choices[0].message) || {};
+  const reply = String(msg.content || '').trim();
+  if (!reply) throw httpError(502, '对话模型返回了空回复');
+  return { reply, done: true, via: 'api', model: d.model || c.apiModel };
+}
+
 async function chatViaDsh(text) {
   const epoch = chatEpoch;   /* 发送期间若被「清空记录 / 切换目标」作废，就整条放弃 */
   /* 目标在入口就定下来：之后一律用它，不读可能已经变了的 SETTINGS */
@@ -2441,9 +2675,11 @@ async function chatStatePayload() {
   const c = SETTINGS.chat;
   const out = {
     ok: true,
+    provider: c.provider,
     busy: chatBusy,
     pending: !!chatPending,
     dsh: { baseUrl: c.dshBaseUrl, sessionId: c.dshSessionId || '', sessions: [], error: '', tokenReady: !!dshEndpoint().token },
+    api: { baseUrl: c.apiBaseUrl, model: c.apiModel, keySet: !!c.apiKey, systemPrompt: c.systemPrompt || '' },
     log: chatLogTail(40),
   };
   try {
@@ -2491,18 +2727,46 @@ function parseHostPort(url) {
   } catch (e) { return { host: '127.0.0.1', port: 9880 }; }
 }
 function sovitsCandidates() {
-  return [
+  const cfg = (SETTINGS && SETTINGS.sovits) || {};
+  const list = [
     process.env.FISH_SOVITS_DIR,
+    cfg.dir,
+    path.join(APP_DIR, 'voice-engine'),
     path.join(APP_DIR, 'GPT-SoVITS'),
     path.join(os.homedir(), 'GPT-SoVITS'),
-  ].filter(Boolean);
+    path.join(os.homedir(), 'Downloads', 'GPT-SoVITS'),
+  ];
+  /* 别人的引擎常装在盘符根目录（D:\GPT-SoVITS 这类）。只 stat 一层，不递归、不全盘扫。 */
+  if (process.platform === 'win32') {
+    for (const drive of ['C', 'D', 'E', 'F', 'G', 'H']) list.push(drive + ':\\GPT-SoVITS');
+  }
+  return list.filter(Boolean);
+}
+/* 引擎目录自带的解释器优先：D:\GPT-SoVITS 那种装法，torch 只在 .venv 里，
+ * PATH 上的 python 大概率是干净的解释器，直接用它起 api_v2 会报 ModuleNotFoundError。 */
+function sovitsLocalPython(dir) {
+  const cands = [
+    path.join(dir, '.venv', 'Scripts', 'python.exe'),
+    path.join(dir, 'venv', 'Scripts', 'python.exe'),
+    path.join(dir, 'runtime', 'python.exe'),
+    path.join(dir, '.venv', 'bin', 'python3'),
+    path.join(dir, 'venv', 'bin', 'python3'),
+  ];
+  for (const p of cands) {
+    try { if (fs.statSync(p).isFile()) return p; } catch (e) { /* 换下一个 */ }
+  }
+  return '';
 }
 function findSoVits() {
+  const cfg = (SETTINGS && SETTINGS.sovits) || {};
+  const names = [cfg.launcher, 'start-sovits.cmd'].filter(Boolean);
   for (const d of sovitsCandidates()) {
-    const cmd = path.join(d, 'start-sovits.cmd');
+    for (const name of names) {
+      const cmd = path.join(d, name);
+      try { if (fs.statSync(cmd).isFile()) return { dir: d, launcher: cmd, pyScript: '', path: cmd }; } catch (e) { /* 换下一个脚本 */ }
+    }
     const py = path.join(d, 'api_v2.py');
-    try { if (fs.statSync(cmd).isFile()) return { dir: d, launcher: cmd, pyScript: '', path: cmd }; } catch (e) { /* 换下一个 */ }
-    try { if (fs.statSync(py).isFile()) return { dir: d, launcher: '', pyScript: py, path: py }; } catch (e) { /* 换下一个 */ }
+    try { if (fs.statSync(py).isFile()) return { dir: d, launcher: '', pyScript: py, path: py }; } catch (e) { /* 换下一个目录 */ }
   }
   return null;
 }
@@ -2515,6 +2779,12 @@ async function ensureSoVits(force) {
   if (reachable) {
     SOVITS_STATE.status = 'ready';
     SOVITS_STATE.detail = '端口 ' + port + ' 已在监听';
+    const prof = activeVoiceProfile();
+    if (prof && prof.gptWeights && SOVITS_STATE.appliedVoice !== prof.id) {
+      applyVoiceWeights(prof).then(function (done) {
+        if (done) { SOVITS_STATE.appliedVoice = prof.id; SOVITS_STATE.detail += ' · 已切到 ' + prof.name; }
+      });
+    }
     return SOVITS_STATE;
   }
   const found = findSoVits();
@@ -2540,7 +2810,7 @@ async function ensureSoVits(force) {
   }
   if (!found) {
     SOVITS_STATE.status = 'missing';
-    SOVITS_STATE.detail = '没找到 GPT-SoVITS（可设环境变量 FISH_SOVITS_DIR 指向安装目录）';
+    SOVITS_STATE.detail = '没找到 GPT-SoVITS：在「引擎目录」里选一下它的安装位置（含 api_v2.py 或 start-sovits.cmd），或设环境变量 FISH_SOVITS_DIR';
     return SOVITS_STATE;
   }
   const dir = found.dir, launcher = found.launcher, pyScript = found.pyScript;
@@ -2556,9 +2826,14 @@ async function ensureSoVits(force) {
         cwd: dir, detached: true, stdio: 'ignore',
       });
     } else {
-      /* 只有 api_v2.py：直接找 python 解释器拉起，兼容没写启动脚本的安装 */
-      const py = process.env.FISH_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-      child = spawn(py, [pyScript, '-a', host, '-p', String(port)], {
+      /* 只有 api_v2.py：优先用引擎目录自带的解释器，最后才回落到 PATH 上的 python */
+      const py = process.env.FISH_PYTHON || sovitsLocalPython(dir) || (process.platform === 'win32' ? 'python' : 'python3');
+      const args = [pyScript, '-a', host, '-p', String(port)];
+      const prof = activeVoiceProfile();
+      if (prof && prof.gptWeights && prof.sovitsWeights) {
+        args.push('-g', prof.gptWeights, '-s', prof.sovitsWeights);
+      }
+      child = spawn(py, args, {
         cwd: dir, detached: true, stdio: 'ignore',
       });
     }
@@ -2580,6 +2855,12 @@ async function ensureSoVits(force) {
       if (up) {
         SOVITS_STATE.status = 'ready';
         SOVITS_STATE.detail = '已连接 · ' + url;
+        const prof = activeVoiceProfile();
+        if (prof && prof.gptWeights) {
+          applyVoiceWeights(prof).then(function (done) {
+            if (done) { SOVITS_STATE.appliedVoice = prof.id; SOVITS_STATE.detail += ' · 已切到 ' + prof.name; }
+          });
+        }
         return;
       }
       if (Date.now() < deadline) { setTimeout(poll, 2000); }
@@ -2595,12 +2876,129 @@ async function ensureSoVits(force) {
   }
   return SOVITS_STATE;
 }
+/* ---------- 飞鱼声线：引擎目录探测 + 拉起 ----------
+ * 引擎目录结构（D:\feiyu-voice 这种）：
+ *   server.py  runtime\Scripts\python.exe  CosyVoice\  models\FeiyuVoice-CosyVoice3\
+ * 只认这三样齐全的目录，避免把普通文件夹当引擎起进程。
+ */
+const COSY_STATE = { status: 'idle', detail: '', startedAt: 0, pid: 0, detected: '', dir: '' };
+
+function cosyCandidates() {
+  const cfg = (SETTINGS && SETTINGS.cosyvoice) || {};
+  const list = [
+    process.env.FISH_FEIYU_DIR,
+    cfg.dir,
+    path.join(APP_DIR, 'voice-engine', 'feiyu'),
+    path.join(APP_DIR, 'feiyu-voice'),
+    path.join(os.homedir(), 'feiyu-voice'),
+  ];
+  if (process.platform === 'win32') {
+    for (const drive of ['C', 'D', 'E', 'F', 'G', 'H']) list.push(drive + ':\\feiyu-voice');
+  }
+  return list.filter(Boolean);
+}
+function findCosyVoice() {
+  for (const d of cosyCandidates()) {
+    if (!d) continue;
+    try {
+      if (!fs.statSync(path.join(d, 'server.py')).isFile()) continue;
+      if (!fs.statSync(path.join(d, 'models', 'FeiyuVoice-CosyVoice3', 'manifest.json')).isFile()) continue;
+      const py = [path.join(d, 'runtime', 'Scripts', 'python.exe'), path.join(d, '.venv', 'Scripts', 'python.exe')]
+        .find(p => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } });
+      if (!py) continue;
+      return { dir: d, python: py, server: path.join(d, 'server.py'), path: path.join(d, 'server.py') };
+    } catch (e) { /* 换下一个 */ }
+  }
+  return null;
+}
+function cosyEndpoint() {
+  const cfg = (SETTINGS && SETTINGS.cosyvoice) || DEFAULT_SETTINGS.cosyvoice || {};
+  return String(cfg.baseUrl || 'http://127.0.0.1:9882').replace(/\/+$/, '');
+}
+function cosyvoiceStatus() {
+  const url = cosyEndpoint();
+  return Object.assign({
+    ok: true,
+    baseUrl: url,
+    engine: (SETTINGS && SETTINGS.tts && SETTINGS.tts.engine) || 'browser',
+    style: (SETTINGS.cosyvoice && SETTINGS.cosyvoice.style) || 'cute',
+    autoStart: !!(SETTINGS.cosyvoice && SETTINGS.cosyvoice.autoStart),
+  }, COSY_STATE);
+}
+
+async function ensureCosyVoice(force) {
+  const url = cosyEndpoint();
+  const { host, port } = parseHostPort(url);
+  const local = host === '127.0.0.1' || host === 'localhost' || host === '::1';
+  if (await portOpen(host, port, 600)) {
+    COSY_STATE.status = 'ready';
+    COSY_STATE.detail = '端口 ' + port + ' 已在监听';
+    return COSY_STATE;
+  }
+  const found = findCosyVoice();
+  COSY_STATE.detected = found ? found.path : '';
+  COSY_STATE.dir = found ? found.dir : '';
+  const auto = !!(SETTINGS && SETTINGS.cosyvoice && SETTINGS.cosyvoice.autoStart === true);
+  if (!force && !auto) {
+    COSY_STATE.status = 'off';
+    COSY_STATE.detail = found
+      ? '未自动启动（默认关闭）。已找到 ' + found.path + '，可在设置里点「启动飞鱼声线」'
+      : '未自动启动。没找到飞鱼声线引擎：在「引擎目录」里选一下（含 server.py 与 models）';
+    return COSY_STATE;
+  }
+  if (!local) { COSY_STATE.status = 'off'; COSY_STATE.detail = '服务地址不是本机，无法自动启动'; return COSY_STATE; }
+  if (!found) {
+    COSY_STATE.status = 'missing';
+    COSY_STATE.detail = '没找到飞鱼声线引擎：在「引擎目录」里选一下含 server.py 的文件夹，或设环境变量 FISH_FEIYU_DIR';
+    return COSY_STATE;
+  }
+  COSY_STATE.status = 'starting';
+  COSY_STATE.detail = '正在启动飞鱼声线，首次加载模型约需 40–60 秒…';
+  COSY_STATE.startedAt = Date.now();
+  let spawnFailed = '';
+  try {
+    const logPath = path.join(found.dir, 'server.log');
+    let fd = 'ignore';
+    try { fd = fs.openSync(logPath, 'a'); } catch (e) { fd = 'ignore'; }
+    const child = spawn(found.python, [found.server, '--port', String(port), '--style',
+      (SETTINGS.cosyvoice && SETTINGS.cosyvoice.style) || 'cute'], {
+      cwd: found.dir, detached: true, stdio: ['ignore', fd, fd],
+    });
+    child.on('error', (err) => {
+      spawnFailed = (err && err.message) || String(err);
+      COSY_STATE.status = 'error';
+      COSY_STATE.detail = '飞鱼声线启动失败：' + spawnFailed + '（聊天不受影响）';
+      COSY_STATE.pid = 0;
+    });
+    COSY_STATE.pid = child.pid || 0;
+    child.unref();
+    const deadline = Date.now() + 240000;
+    const poll = async () => {
+      if (spawnFailed) return;
+      if (await portOpen(host, port, 800)) {
+        COSY_STATE.status = 'ready';
+        COSY_STATE.detail = '已连接 · ' + url + '（首次合成前仍要等模型加载）';
+        return;
+      }
+      if (Date.now() < deadline) setTimeout(poll, 2000);
+      else { COSY_STATE.status = 'timeout'; COSY_STATE.detail = '等待 240 秒仍未就绪，请查看 ' + logPath; }
+    };
+    setTimeout(poll, 1500);
+  } catch (e) {
+    COSY_STATE.status = 'error';
+    COSY_STATE.detail = '自动启动失败：' + e.message;
+  }
+  return COSY_STATE;
+}
+
 function sovitsStatus() {
   const url = sovitsEndpoint();
+  const prof = activeVoiceProfile();
   return Object.assign({
     ok: true, baseUrl: url,
     engine: (SETTINGS && SETTINGS.tts && SETTINGS.tts.engine) || 'browser',
     autoStart: !!(SETTINGS && SETTINGS.sovits && SETTINGS.sovits.autoStart),
+    voice: prof ? { id: prof.id, name: prof.name, modelVersion: prof.modelVersion, hasPrompt: !!prof.promptText, weights: !!(prof.gptWeights && prof.sovitsWeights) } : null,
   }, SOVITS_STATE);
 }
 
@@ -2708,11 +3106,11 @@ async function handlePost(p, req, res) {
     return sendJson(res, 200, setAssetSlots(String(body.slot || ''), body.file));
   }
   if (p === '/api/form') {
-    /* 角色形态切换：whale-mature / whale-chibi，以及鲸鱼娘形态是否沿用亚托莉背景 */
+    /* 角色形态切换：whale-mature / whale-chibi / atri（本地已装素材时可选），以及鲸鱼娘形态是否沿用亚托莉背景 */
     const raw = loadAssetsRaw();
     if (body.form != null) {
       const f = String(body.form);
-      if (['whale-mature', 'whale-chibi'].indexOf(f) < 0) throw httpError(400, '未知的角色形态');
+      if (['whale-mature', 'whale-chibi', 'atri'].indexOf(f) < 0) throw httpError(400, '未知的角色形态');
       raw.form = f;
     }
     if (body.whaleBgFromAtri != null) raw.whaleBgFromAtri = !!body.whaleBgFromAtri;
@@ -2755,11 +3153,12 @@ async function handlePost(p, req, res) {
     /* 超时后挂起的那条仍占着唯一的等待位：此时再发会把它顶掉，前一条的后续就丢了。
      * 到期（6 分钟）才允许接管，并作废旧等待。 */
     if (chatPending && Date.now() - chatPending.at > 6 * 60 * 1000) resetChatPending();
-    if (chatPending) throw httpError(429, '上一条还没等到 DSH 收尾，等它说完再发（继续等或点「清空记录」都可以）');
+    if (chatPending) throw httpError(429, '上一条还没等到回复，等它说完再发（继续等或点「清空记录」都可以）');
+    const useApi = (SETTINGS.chat && SETTINGS.chat.provider) === 'api';
     chatBusy = true;
     try {
       pushChat('user', text);
-      const out = await chatViaDsh(text);
+      const out = useApi ? await chatViaApi(text) : await chatViaDsh(text);
       if (out.reply) pushChat('assistant', out.reply);
       return sendJson(res, 200, Object.assign({ ok: true }, out, { log: chatLogTail(20) }));
     } finally {
@@ -2793,10 +3192,18 @@ async function handlePost(p, req, res) {
     return sendJson(res, 200, await generateImage(body));
   }
   if (p === '/api/tts/probe') {
-    return sendJson(res, 200, await probeSoVits(body));
+    /* 显式 engine 优先；否则按带了哪一组配置判断，避免「点 SoVITS 测试却探到飞鱼」 */
+    const eng = oneOf(body.engine, ['sovits', 'cosyvoice'], body.cosyvoice ? 'cosyvoice' : 'sovits');
+    return sendJson(res, 200, eng === 'cosyvoice' ? await probeCosyVoice(body) : await probeSoVits(body));
   }
   if (p === '/api/tts/start') {
     /* 用户主动点「启动」：无视 autoStart 开关，但只认显式配置的目录，且把实际路径回给界面 */
+    const eng = oneOf(body.engine, ['sovits', 'cosyvoice'], body.cosyvoice ? 'cosyvoice' : 'sovits');
+    if (eng === 'cosyvoice') {
+      const st = await ensureCosyVoice(true);
+      securityLog('cosyvoice.start', { path: (st && st.detected) || '', pid: (st && st.pid) || 0 });
+      return sendJson(res, 200, cosyvoiceStatus());
+    }
     const st = await ensureSoVits(true);
     securityLog('sovits.start', { path: (st && st.detected) || '', pid: (st && st.pid) || 0 });
     return sendJson(res, 200, sovitsStatus());
@@ -2908,8 +3315,24 @@ function handleRequest(req, res) {
   }
 
   if (p === '/api/tts/status') {
-    /* 本地语音引擎连接状态（供前端启动时自动探测与显示） */
-    sendJson(res, 200, sovitsStatus());
+    /* 本地语音引擎连接状态（供前端启动时自动探测与显示）
+     * 支持 ?engine= 覆盖：设置页切换引擎但还没保存时，也要能查对应引擎的状态 */
+    const eng = oneOf(url.searchParams.get('engine'), ['sovits', 'cosyvoice'],
+      (SETTINGS.tts && SETTINGS.tts.engine) || 'browser');
+    const data = eng === 'cosyvoice' ? cosyvoiceStatus() : sovitsStatus();
+    data.engine = eng;      /* 回的是本次查询的引擎，不受已保存设置影响 */
+    sendJson(res, 200, data);
+    return;
+  }
+  if (p === '/api/voice/profiles') {
+    /* 内置音色清单：只回展示需要的字段，不把本机绝对路径发给页面 */
+    sendJson(res, 200, {
+      ok: true,
+      active: (SETTINGS.sovits && SETTINGS.sovits.voiceId) || '',
+      voices: listVoiceProfiles().map(function (v) {
+        return { id: v.id, name: v.name, modelVersion: v.modelVersion, weights: !!(v.gptWeights && v.sovitsWeights), hasPrompt: !!v.promptText };
+      }),
+    });
     return;
   }
   if (p === '/api/audio/index') {
@@ -2993,15 +3416,16 @@ server.on('error', (e) => {
 ensureLocalDirs();
 const OPEN_URL = 'http://' + HOST + ':' + PORT + '/#fw_token=' + encodeURIComponent(API_TOKEN);
 server.listen(PORT, HOST, () => {
-  /* 仅当用户显式开启「自动启动」时才尝试拉起本地 GPT-SoVITS，不阻塞启动 */
+  /* 仅当用户显式开启「自动启动」时才尝试拉起本地语音引擎，不阻塞启动 */
   setTimeout(function () { ensureSoVits(false); }, 300);
+  setTimeout(function () { ensureCosyVoice(false); }, 600);
   console.log('[fish-watch] 观察台已启动');
   console.log('  DSH 数据目录：' + ROOT + '  (只读；仅「保存到 DSH」时写回 surfcore 当前 persona.md)');
   console.log('  本地写入范围：' + APP_DIR + '\\settings.json、persona.json、assets.json、chat-log.json、assets\\uploads\\、data\\schedules\\、data\\diaries\\ 与 data\\persona-backups\\');
   console.log('  访问地址（带访问令牌，请用这个打开）：');
   console.log('    ' + OPEN_URL);
   console.log('  令牌文件：' + TOKEN_FILE + '（仅当前用户可读；删掉后下次启动会重新生成）');
-  console.log('  对话：固定走 DSH 会话，经 .dsh/mobile-remote 口令（只读）');
+  console.log('  对话：来源 ' + (SETTINGS.chat.provider === 'api' ? '第三方接口（OpenAI 兼容，仅主动发送时联网）' : 'DSH 会话，经 .dsh/mobile-remote 口令（只读）'));
   console.log('  语音：浏览器语音 / 服务端 TTS / 本地 GPT-SoVITS（默认 http://127.0.0.1:9880，默认不自动启动）');
   console.log('  按 Ctrl+C 停止。');
   if (process.env.FISH_WATCH_NO_OPEN !== '1' && process.platform === 'win32') {
